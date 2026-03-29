@@ -13,7 +13,7 @@ ROS Parameters:
     timeout (float, default 300.0): Overall timeout in seconds
 
 Usage:
-    ros2 run carla_pilot auto_drive --ros-args -p poses_file:=/path/to/Town01.yaml
+    ros2 run acb_pilot auto_drive --ros-args -p poses_file:=/path/to/Town01.yaml
 
 Poses file format:
     goal_pose:

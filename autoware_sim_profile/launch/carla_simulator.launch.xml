@@ -60,11 +60,11 @@
   <arg name="rviz_config" default="$(find-pkg-share autoware_launch)/rviz/$(var rviz_config_name)" description="rviz config path"/>
 
   <!-- CARLA-optimized localization config path -->
-  <arg name="carla_loc_config_path" default="$(find-pkg-share carla_autoware_launch)/config/localization"/>
+  <arg name="carla_loc_config_path" default="$(find-pkg-share acb_launch)/config/localization"/>
   <!-- CARLA-optimized system topics config - excludes traffic light topic monitoring -->
-  <arg name="carla_system_topics_path" default="$(find-pkg-share carla_autoware_launch)/config/system/component_state_monitor/topics.yaml"/>
+  <arg name="carla_system_topics_path" default="$(find-pkg-share acb_launch)/config/system/component_state_monitor/topics.yaml"/>
   <!-- CARLA-optimized MRM handler config - relaxed timeouts for simulation -->
-  <arg name="carla_mrm_handler_path" default="$(find-pkg-share carla_autoware_launch)/config/system/mrm_handler/mrm_handler.param.yaml"/>
+  <arg name="carla_mrm_handler_path" default="$(find-pkg-share acb_launch)/config/system/mrm_handler/mrm_handler.param.yaml"/>
 
   <!-- autoware_carla_interface is replaced by our native Rust bridge (autoware_carla_bridge) -->
   <!-- <group scoped="false" if="$(eval &quot;'$(var simulator_type)' == 'carla'&quot;)">
@@ -75,7 +75,7 @@
        default_preset.yaml. YAML includes modify the parent context, and child
        contexts inherit configurations, so these values propagate through the
        include chain and take precedence over the default preset's defaults. -->
-  <include file="$(find-pkg-share carla_autoware_launch)/config/planning/preset/carla_preset.yaml"/>
+  <include file="$(find-pkg-share acb_launch)/config/planning/preset/carla_preset.yaml"/>
 
   <!-- Include autoware.launch.xml with localization DISABLED
        Localization is launched separately below with CARLA-optimized config -->
@@ -124,7 +124,7 @@
   </group>
 
   <!-- Include localization with CARLA-optimized config
-       This uses carla_autoware_launch/config/localization with lowered NDT threshold -->
+       This uses acb_launch/config/localization with lowered NDT threshold -->
   <group if="$(var localization)">
     <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_localization_component.launch.xml">
       <!-- Use CARLA-optimized localization config path -->
@@ -137,7 +137,7 @@
   </group>
 
   <!-- Include system with CARLA-optimized topics config
-       This uses carla_autoware_launch topics.yaml which excludes traffic light monitoring -->
+       This uses acb_launch topics.yaml which excludes traffic light monitoring -->
   <group if="$(var system)">
     <include file="$(find-pkg-share tier4_system_launch)/launch/system.launch.xml">
       <arg name="run_mode" value="logging_simulation"/>
@@ -165,7 +165,7 @@
       <arg name="mrm_handler_param_path" value="$(var carla_mrm_handler_path)"/>
       <arg name="diagnostic_graph_aggregator_param_path" value="$(find-pkg-share autoware_diagnostic_graph_aggregator)/config/default.param.yaml"/>
       <!-- Use our CARLA-specific diagnostic graph with corrected node names for Autoware 1.5.0 -->
-      <arg name="diagnostic_graph_aggregator_graph_path" value="$(find-pkg-share carla_autoware_launch)/config/system/diagnostics/autoware-carla.yaml"/>
+      <arg name="diagnostic_graph_aggregator_graph_path" value="$(find-pkg-share acb_launch)/config/system/diagnostics/autoware-carla.yaml"/>
     </include>
   </group>
 </launch>

@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'carla_pilot'
+package_name = 'acb_pilot'
 
 setup(
     name=package_name,
@@ -21,8 +21,8 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'auto_drive = carla_pilot.auto_drive:main',
-            'capture_poses = carla_pilot.capture_poses:main',
+            'auto_drive = acb_pilot.auto_drive:main',
+            'capture_poses = acb_pilot.capture_poses:main',
         ],
     },
 )

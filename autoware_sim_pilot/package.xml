@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>carla_pilot</name>
+  <name>acb_pilot</name>
   <version>0.2.0</version>
   <description>Autonomous driving pilot and pose capture for CARLA-Autoware</description>
   <maintainer email="user@example.com">User</maintainer>
