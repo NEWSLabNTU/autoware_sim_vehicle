@@ -23,7 +23,6 @@ setup(
         'console_scripts': [
             'auto_drive = acb_pilot.auto_drive:main',
             'capture_poses = acb_pilot.capture_poses:main',
-            'demo_scenario = acb_pilot.demo_scenario:main',
         ],
     },
 )
