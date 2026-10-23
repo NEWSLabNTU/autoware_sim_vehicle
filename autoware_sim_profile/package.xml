@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>acb_launch</name>
+  <name>autoware_sim_profile</name>
   <version>0.1.0</version>
-  <description>Autoware launch files and configurations for CARLA simulation</description>
+  <description>The Autoware profile for a simulated car: Autoware 1.5 tuned for simulation, no vehicle interface (roadmap 051)</description>
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 

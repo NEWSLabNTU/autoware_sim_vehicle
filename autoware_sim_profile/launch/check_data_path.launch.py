@@ -16,7 +16,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 
-FIX = "ros2 run acb_launch setup_autoware_data"
+FIX = "ros2 run autoware_sim_profile setup_autoware_data"
 
 
 def problem(path):

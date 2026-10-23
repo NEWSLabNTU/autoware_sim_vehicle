@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.14)
-project(acb_launch)
+project(autoware_sim_profile)
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-# `ros2 run acb_launch setup_autoware_data` -- mirrors Autoware's packaged data into a
+# `ros2 run autoware_sim_profile setup_autoware_data` -- mirrors Autoware's packaged data into a
 # writable data_path (see the script's header).
 install(PROGRAMS scripts/setup_autoware_data DESTINATION lib/${PROJECT_NAME})
 # The planning common parameter file for carla_simulator's max_velocity, run by a

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Derive acb_launch's copy of autoware_launch's planning component.
+# Derive autoware_sim_profile's copy of autoware_launch's planning component.
 #
 # The copy exists for one change: the planning common parameter file (common.param.yaml,
 # whose max_vel caps every planner at 4.17 m/s = 15 km/h) is an argument, which upstream
 # hard-codes. carla_simulator.launch.xml passes upstream's own file at the default
 # max_velocity:=4.17, so the default stack is upstream's, and a copy of it with another
-# max_vel (written at launch by acb_launch's planning_common_param) otherwise.
+# max_vel (written at launch by autoware_sim_profile's planning_common_param) otherwise.
 #
 #   scripts/sync_planning_component.sh          regenerate the copy from the installed upstream
 #   scripts/sync_planning_component.sh --check  exit 1 if the copy differs from what it would regenerate
@@ -16,7 +16,7 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 share="${AUTOWARE_LAUNCH_SHARE:-/opt/autoware/1.5.0/share/autoware_launch}"
 up_component="$share/launch/components/tier4_planning_component.launch.xml"
 up_common="$share/config/planning/scenario_planning/common/common.param.yaml"
-component="$here/src/acb_launch/launch/components/tier4_planning_component.launch.xml"
+component="$here/autoware_sim_profile/launch/components/tier4_planning_component.launch.xml"
 common_value='<arg name="common_param_path" value="$(var common_config_path)/common.param.yaml"/>'
 for f in "$up_component" "$up_common"; do [ -f "$f" ] || { echo "no upstream file $f"; exit 2; }; done
 [ "$(grep -cF "$common_value" "$up_component")" = 1 ] || {

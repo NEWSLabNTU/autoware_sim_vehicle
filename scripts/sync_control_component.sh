@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Derive acb_launch's copies of autoware_launch's control component and MPC parameters.
+# Derive autoware_sim_profile's copies of autoware_launch's control component and MPC parameters.
 #
 # The copies exist for one change (issue 025): MPC's automatic steering offset removal is
 # off on CARLA. The estimator averages `reported steering - atan(yaw_rate * L / v)` over
@@ -20,8 +20,8 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 share="${AUTOWARE_LAUNCH_SHARE:-/opt/autoware/1.5.0/share/autoware_launch}"
 up_component="$share/launch/components/tier4_control_component.launch.xml"
 up_mpc="$share/config/control/trajectory_follower/lateral/mpc.param.yaml"
-component="$here/src/acb_launch/launch/components/tier4_control_component.launch.xml"
-mpc="$here/src/acb_launch/config/control/trajectory_follower/lateral/mpc.param.yaml"
+component="$here/autoware_sim_profile/launch/components/tier4_control_component.launch.xml"
+mpc="$here/autoware_sim_profile/config/control/trajectory_follower/lateral/mpc.param.yaml"
 lat_value='value="$(find-pkg-share autoware_launch)/config/control/trajectory_follower/$(var latlon_controller_param_path_dir)/lateral/$(var lateral_controller_mode).param.yaml"'
 offset_on='enable_auto_steering_offset_removal: true'
 for f in "$up_component" "$up_mpc"; do [ -f "$f" ] || { echo "no upstream file $f"; exit 2; }; done
