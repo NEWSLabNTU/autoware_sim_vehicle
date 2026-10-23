@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'acb_pilot'
+package_name = 'autoware_sim_pilot'
 
 setup(
     name=package_name,
@@ -18,13 +18,12 @@ setup(
     zip_safe=True,
     maintainer='User',
     maintainer_email='user@example.com',
-    description='Autonomous driving pilot and pose capture for CARLA-Autoware',
+    description='Drive Autoware to a goal over its API, and capture poses from RViz: any simulated car',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'auto_drive = acb_pilot.auto_drive:main',
-            'capture_poses = acb_pilot.capture_poses:main',
-            'agent = acb_pilot.agent:main',
+            'auto_drive = autoware_sim_pilot.auto_drive:main',
+            'capture_poses = autoware_sim_pilot.capture_poses:main',
         ],
     },
 )

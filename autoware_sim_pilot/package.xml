@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>acb_pilot</name>
+  <name>autoware_sim_pilot</name>
   <version>0.2.0</version>
-  <description>Autoware vehicle agent (agent protocol), autonomous driving pilot and pose capture</description>
+  <description>Drive Autoware to a goal over its API (auto_drive), and capture poses from RViz: for any simulated car (roadmap 051)</description>
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 

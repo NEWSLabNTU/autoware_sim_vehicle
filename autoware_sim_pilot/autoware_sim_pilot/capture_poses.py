@@ -16,10 +16,10 @@ ROS Parameters:
     output_file (str, required): Path to output YAML file
 
 Usage:
-    ros2 run acb_pilot capture_poses --ros-args -p output_file:=/path/to/poses.yaml
+    ros2 run autoware_sim_pilot capture_poses --ros-args -p output_file:=/path/to/poses.yaml
 
 The output file is read by auto_drive:
-    ros2 run acb_pilot auto_drive --ros-args -p poses_file:=/path/to/poses.yaml
+    ros2 run autoware_sim_pilot auto_drive --ros-args -p poses_file:=/path/to/poses.yaml
 """
 
 import sys

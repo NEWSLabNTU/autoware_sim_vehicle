@@ -6,6 +6,7 @@ The Autoware side of a simulated car, the same on every simulator
 | Package | What |
 |---|---|
 | `autoware_sim_profile` | Autoware 1.5 tuned for simulation, with no vehicle interface: `launch/autoware.launch.xml`. A simulator's vehicle bridge includes it and starts its own interface beside it ([autoware_carla_bridge](https://github.com/NEWSLabNTU/autoware_carla_bridge) on CARLA, [autoware_isaac_bridge](https://github.com/NEWSLabNTU/autoware_isaac_bridge) on Isaac Sim) |
+| `autoware_sim_pilot` | `auto_drive`: route and engage Autoware over its API and wait for arrival, from a poses file (`config/poses/<town>.yaml`); `capture_poses`: write those files from RViz. For driving to a goal with no scenario runner |
 
 The profile needs no simulator and no scenario runner. Its simulation settings are switchable
 (`sim_localization`, `sim_perception`, `sim_system`, `sim_control`, `sim_planning`; false
@@ -15,6 +16,7 @@ hands the component back to your `autoware.launch.xml`), and `max_velocity`,
 ```bash
 just build    # against /opt/autoware/1.5.0 (AUTOWARE_SETUP)
 ros2 run autoware_sim_profile setup_autoware_data   # once: a writable data_path for TensorRT
+ros2 run autoware_sim_pilot auto_drive --ros-args -p poses_file:=<poses.yaml>   # beside a running stack
 just check    # the component copies still derive from autoware_launch's
 ```
 

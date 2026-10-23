@@ -5,7 +5,7 @@ Waits for Autoware services, then waits for GNSS-driven localization to
 complete automatically, sets a route from a per-map goal poses file, engages
 autonomous mode, and exits when the vehicle arrives at the goal.
 
-No manual localization initialization is needed - GNSS data flows from CARLA
+No manual localization initialization is needed - GNSS data flows from the simulator
 through gnss_poser to autoware_automatic_pose_initializer_node automatically.
 
 ROS Parameters:
@@ -22,7 +22,7 @@ ROS Parameters:
         See step1b_wait_for_vehicle and run().
 
 Usage:
-    ros2 run acb_pilot auto_drive --ros-args -p poses_file:=/path/to/Town01.yaml
+    ros2 run autoware_sim_pilot auto_drive --ros-args -p poses_file:=/path/to/Town01.yaml
 
 Poses file format:
     goal_pose:
@@ -65,7 +65,7 @@ VEHICLE_GONE_AFTER = 5.0
 
 # Losing the ego this close to the goal counts as arriving. Wider than the scenario's own
 # ReachPositionCondition (6 m in town01_unmanaged.xosc), because the EKF pose the pilot
-# last saw lags the CARLA pose the scenario scored.
+# last saw lags the simulator pose the scenario scored.
 ARRIVED_IF_LOST_WITHIN = 15.0
 
 
@@ -202,7 +202,7 @@ class AutoDriveNode(Node):
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
         )
 
-        # Evidence that the vehicle this pilot drives exists at all. `acb_bridge`
+        # Evidence that the vehicle this pilot drives exists at all. the vehicle bridge
         # publishes GNSS only once it has a vehicle to attach the sensor to, so the
         # first message here is the moment the vehicle appeared. See
         # step1b_wait_for_vehicle for why that has to be timed separately.
@@ -309,7 +309,7 @@ class AutoDriveNode(Node):
     def _vehicle_is_present(self) -> bool:
         """Is the vehicle this pilot is driving still there?
 
-        `acb_bridge` publishes GNSS only while it has a vehicle attached, so GNSS going
+        the vehicle bridge publishes GNSS only while it has a vehicle attached, so GNSS going
         quiet means the vehicle was despawned. VEHICLE_GONE_AFTER is generous because the
         topic is not fast and a busy machine can stretch the gap.
         """
@@ -356,7 +356,7 @@ class AutoDriveNode(Node):
         was wrong with localization, which took 55 s once there was a vehicle to
         localize. So this is a separate deadline, and the drive budget starts after it.
 
-        GNSS is the signal: `acb_bridge` publishes it only once it has attached the
+        GNSS is the signal: the vehicle bridge publishes it only once it has attached the
         sensor to a vehicle.
         """
         self.get_logger().info(
@@ -382,7 +382,7 @@ class AutoDriveNode(Node):
         self.get_logger().error(
             f"  No vehicle appeared within {timeout:.0f}s: nothing ever published "
             f"/sensing/gnss/pose_with_covariance. Either no scenario spawned this "
-            f"vehicle, or acb_bridge never attached its sensors."
+            f"vehicle, or the vehicle bridge never attached its sensors."
         )
         return False
 

@@ -10,7 +10,7 @@ build:
     #!/usr/bin/env bash
     set -e
     source "{{autoware_setup}}"
-    colcon build --symlink-install --base-paths autoware_sim_profile
+    colcon build --symlink-install --base-paths autoware_sim_profile autoware_sim_pilot
 
 # The profile's copies of autoware_launch's components still derive from upstream's
 check:
