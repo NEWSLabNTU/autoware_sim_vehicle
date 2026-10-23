@@ -1,0 +1,11 @@
+# accel_map.csv and brake_map.csv beside this file: Autoware's pedal maps for this car,
+# measured on CARLA (acb's scripts/build_longitudinal_maps.py), read by acb_bridge and by
+# Autoware's raw_vehicle_cmd_converter. Measured, not generated: what they were measured
+# against is recorded here and checked by `just check-generated`.
+#
+# measured_on: blueprint -- CARLA's own vehicle.tesla.model3 physics, which CARLA runs while the
+# spec has no carla.physics section. Once it has one (roadmap 051 K3), the maps are measured
+# again on the spec's physics and record its physics_hash instead.
+measured_on: blueprint
+physics_hash: null
+basis: "acb_vehicle_description's maps (2026-10), carried unchanged by roadmap 051 K2"

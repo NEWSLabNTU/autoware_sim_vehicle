@@ -1,0 +1,4 @@
+[submodule "deps/sim_vehicle_spec"]
+	path = deps/sim_vehicle_spec
+	url = https://github.com/NEWSLabNTU/sim_vehicle_spec.git
+	branch = target-shape

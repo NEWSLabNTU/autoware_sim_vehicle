@@ -6,6 +6,8 @@ The Autoware side of a simulated car, the same on every simulator
 | Package | What |
 |---|---|
 | `autoware_sim_profile` | Autoware 1.5 tuned for simulation, with no vehicle interface: `launch/autoware.launch.xml`. A simulator's vehicle bridge includes it and starts its own interface beside it ([autoware_carla_bridge](https://github.com/NEWSLabNTU/autoware_carla_bridge) on CARLA, [autoware_isaac_bridge](https://github.com/NEWSLabNTU/autoware_isaac_bridge) on Isaac Sim) |
+| `cars/<name>/` | Each car's Autoware packages, generated from its spec (`deps/sim_vehicle_spec/vehicles/<name>.yaml`) by `autoware_gen`: `<name>_description` (vehicle_info, mirror, the pedal maps measured on CARLA), `<name>_launch`, `<name>_sensor_kit_description` (calibration, URDF), `<name>_sensor_kit_launch` (the sensing pipeline). Autoware selects them with `vehicle_model:=<name> sensor_model:=<name>_sensor_kit` |
+| `individual_params` | Every car's sensor kit calibration, where Autoware looks it up |
 | `autoware_sim_pilot` | `auto_drive`: route and engage Autoware over its API and wait for arrival, from a poses file (`config/poses/<town>.yaml`); `capture_poses`: write those files from RViz. For driving to a goal with no scenario runner |
 
 The profile needs no simulator and no scenario runner. Its simulation settings are switchable
@@ -20,5 +22,7 @@ ros2 run autoware_sim_pilot auto_drive --ros-args -p poses_file:=<poses.yaml>   
 just check    # the component copies still derive from autoware_launch's
 ```
 
-Per-car packages generated from the vehicle spec, and `vehicle_check` (the contract and the
-dynamics run every simulator's bridge is checked against), come with roadmap 051 K2-K3.
+`just generate` writes every car's packages; `just check-generated` fails when one is stale
+or its pedal maps were measured on other physics than the spec's. `vehicle_check` (the
+contract and the dynamics run every simulator's bridge is checked against) comes with roadmap
+051 K3.
