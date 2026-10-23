@@ -25,6 +25,10 @@ from autoware_sim_check import contract as C
 from autoware_sim_check import dynamics as D
 
 
+# A step's limit in wall time: a simulator at a fraction of real time still finishes.
+WALL_PER_STEP = 120.0
+
+
 def stamp_s(t):
     return t.sec + t.nanosec * 1e-9
 
@@ -122,6 +126,12 @@ class Check(Node):
         from autoware_vehicle_msgs.msg import GearCommand
 
         log = self.get_logger()
+        deadline = time.monotonic() + 120
+        while (self.clock is None or self.vel is None) and time.monotonic() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        if self.clock is None or self.vel is None:
+            return [{"step": "start", "pass": False,
+                     "why": "no /clock or /vehicle/status/velocity_status: no vehicle side"}]
         control = self.create_publisher(Control, "/control/command/control_cmd", 10)
         gear = self.create_publisher(GearCommand, "/control/command/gear_cmd", 10)
         L = self.spec.doc["geometry"]["wheel_base"]
@@ -150,11 +160,19 @@ class Check(Node):
             log.info(f"step {step.name}")
             self.recording = []
             t0 = self.clock
+            # A simulator whose clock stopped ends the step, and the run with it.
+            wall_end = time.monotonic() + WALL_PER_STEP
             while rclpy.ok():
                 v = self.vel[1] if self.vel else 0.0
                 t = (self.clock or t0) - t0
                 if D.done(step, t, v):
                     break
+                if time.monotonic() > wall_end:
+                    results.append({"step": step.name, "pass": False,
+                                    "why": f"{WALL_PER_STEP:.0f} s of wall time, {t:.1f} s of "
+                                           "simulation time: the simulator stopped"})
+                    self.recording = None
+                    return results
                 send(*D.command(step, t, v))
                 self.spin_for(0.03, sim=False)
             samples = [dict(s, t=s["stamp"] - t0) for s in self.recording]
