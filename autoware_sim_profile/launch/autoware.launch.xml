@@ -98,9 +98,9 @@
        description="camera namespaces feeding traffic light recognition. Must name a
                     namespace Autoware ships a map-based-detector parameter file for --
                     only camera6 and camera7 exist, and a missing file makes that node
-                    exit at startup without failing the launch. acb publishes its one
-                    CARLA camera under the TF frame named in acb_bridge's
-                    vehicle_config.yaml, which is camera6/camera_link for that reason"/>
+                    exit at startup without failing the launch. The vehicle bridge
+                    publishes its one traffic light camera under camera6/camera_link
+                    for that reason"/>
   <!-- clustering by default: on CARLA it is the one that passes the AWF standing-pedestrian
        use case. Measured 2026-10-10 on one host and build, UC-AEB-001-0001 (9 variants):
        centerpoint 2/9 (the ego hit the pedestrian in 6, braked at -7.2 m/s^2 in 1; the
