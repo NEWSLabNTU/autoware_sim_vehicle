@@ -144,7 +144,7 @@
        differently from a fresh one. Everything else is upstream's control component. -->
   <arg name="sim_control" default="true" description="simulation MPC params (no steering offset learning)"/>
   <arg name="sim_lat_controller_param_path" default="$(find-pkg-share autoware_sim_profile)/config/control/trajectory_follower/lateral/mpc.param.yaml"/>
-  <!-- Planning from acb's copy of upstream's component, which takes the common parameter
+  <!-- Planning from this profile's copy of upstream's component, which takes the common parameter
        file as an argument so max_velocity can reach it; at the default that file is
        upstream's own and the stack is upstream's. -->
   <arg name="sim_planning" default="true" description="planning with a selectable max_velocity"/>

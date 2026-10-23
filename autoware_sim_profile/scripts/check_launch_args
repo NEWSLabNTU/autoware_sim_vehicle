@@ -4,7 +4,8 @@
 ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
 switch before it became `sim_control` -- would be dropped without a word and the run would
 use the default. Every wrapper that hands its arguments to the profile (swb's `just ego-av`,
-`ego-isaac`, `bg-av`; acb's `just autoware` and `sim`; aib's `just autoware`) runs this first:
+`ego-isaac`, `bg-av`; aib's `just autoware`) runs this first; acb's `just autoware` and `sim`
+take no profile arguments at all (`map:=` only) and refuse the rest:
 
     check_launch_args [name:=value ...]      exit 0, or 2 with one line per retired argument
 """
