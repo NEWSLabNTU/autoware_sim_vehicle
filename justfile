@@ -14,6 +14,7 @@ build:
 
 # The profile's copies of autoware_launch's components still derive from upstream's
 check:
+    python3 -m pytest -q test
     scripts/sync_control_component.sh --check
     scripts/sync_perception_component.sh --check
     scripts/sync_planning_component.sh --check
