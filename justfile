@@ -10,7 +10,7 @@ build:
     #!/usr/bin/env bash
     set -e
     source "{{autoware_setup}}"
-    colcon build --symlink-install --base-paths autoware_sim_profile autoware_sim_pilot cars individual_params
+    colcon build --symlink-install --base-paths autoware_sim_profile autoware_sim_pilot autoware_sim_check cars individual_params deps/sim_vehicle_spec
 
 # Write every car's packages from its spec
 generate:
@@ -24,6 +24,7 @@ check-generated:
 # still derive from upstream's
 check: check-generated
     python3 -m pytest -q test
+    cd autoware_sim_check && python3 -m pytest -q -p no:cacheprovider test
     scripts/sync_control_component.sh --check
     scripts/sync_perception_component.sh --check
     scripts/sync_planning_component.sh --check

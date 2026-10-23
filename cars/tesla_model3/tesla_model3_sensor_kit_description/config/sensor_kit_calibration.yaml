@@ -1,4 +1,4 @@
-# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash d5d4b266c7fd1fb46630672c7979aa617f598e8458fa279b635dec108fa4ea45) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 862c2168f77eb4bd414dd2bbea373da7002aa72ca0e4ee8b3c9a55071946c510) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
 # Each sensor's mount in sensor_kit_base_link: metres (x forward, y left, z up), radians.
 sensor_kit_base_link:
   # top: lidar
