@@ -21,6 +21,7 @@
     <arg name="vehicle_model" value="$(var vehicle_model)"/>
     <arg name="sensor_model" value="$(var sensor_model)"/>
   </include>
+  <!-- Required: the launch ends with the check, whatever its verdict (the report says). -->
   <node pkg="autoware_sim_check" exec="vehicle_check" name="vehicle_check" output="screen"
-        args="$(var what) --vehicle-model $(var vehicle_model) --simulator $(var simulator) --listen $(var listen) --out $(var out)"/>
+        on_exit="shutdown" args="$(var what) --vehicle-model $(var vehicle_model) --simulator $(var simulator) --listen $(var listen) --out $(var out)"/>
 </launch>
