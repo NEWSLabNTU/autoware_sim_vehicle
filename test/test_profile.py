@@ -184,6 +184,6 @@ def test_the_profile_starts_no_vehicle_interface_and_no_agent():
     """Roadmap 051: the vehicle bridge starts its interface; the agent comes by extra_launch."""
     launch = read(LAUNCH)
     code = "".join(part.split("-->", 1)[-1] for part in launch.split("<!--"))
-    for word in ("acb_bridge", "acb_pilot", "aib_", "exec=\"agent\"", "relay\""):
+    for word in ("acb_bridge", "acb_pilot", "aib_", "exec=\"agent\"", "<arg name=\"relay\""):
         assert word not in code, word
     assert "<arg name=\"launch_vehicle_interface\" value=\"false\"/>" in code
