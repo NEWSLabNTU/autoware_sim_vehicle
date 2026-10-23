@@ -197,7 +197,8 @@ def outputs(specs_dir, root):
         header = emit.header(spec, TOOL, rel)
         base = f"cars/{car}"
         for t in sorted(TEMPLATES.rglob("*")):
-            if not t.is_file() or t.relative_to(TEMPLATES).parts[0] == "individual_params":
+            if (not t.is_file() or t.name == "COLCON_IGNORE"
+                    or t.relative_to(TEMPLATES).parts[0] == "individual_params"):
                 continue
             dest = t.relative_to(TEMPLATES).as_posix().replace("@CAR@", car).replace("@KIT@", kit)
             out[f"{base}/{dest}"] = (t.read_text().replace("@CAR@", car).replace("@KIT@", kit)
