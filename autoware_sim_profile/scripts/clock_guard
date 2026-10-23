@@ -28,6 +28,7 @@ def check(last_ns, now_ns, tolerance_ns):
 
 def main():
     import rclpy
+    from rclpy.executors import ExternalShutdownException
     from rclpy.node import Node
     from rclpy.qos import qos_profile_sensor_data
     from rosgraph_msgs.msg import Clock
@@ -49,8 +50,8 @@ def main():
     try:
         while rclpy.ok() and state["back"] is None:
             rclpy.spin_once(node, timeout_sec=0.5)
-    except KeyboardInterrupt:
-        return 0
+    except (KeyboardInterrupt, ExternalShutdownException):
+        return 0  # the launch is ending anyway
     if state["back"] is None:
         return 0
     last, now = state["back"]
