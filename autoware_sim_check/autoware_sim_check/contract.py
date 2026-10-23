@@ -41,7 +41,8 @@ class Expected:
 
 @dataclass
 class Observed:
-    """What arrived on a topic: its type and, per message, (stamp s, frame_id)."""
+    """What arrived on a topic: the type(s) the graph has on it, and per message (stamp s,
+    frame_id)."""
     type: str = ""
     samples: list = field(default_factory=list)
     # The /clock reading when each message arrived, s.
@@ -75,11 +76,12 @@ def expected(spec, simulator):
 
 def check_topic(e, o):
     """Problems with one topic, [] when it passes."""
+    # `type`: what the graph has on the topic (comma separated), empty when nobody publishes it.
+    if o is not None and o.type and o.type != e.type:
+        return [f"{e.topic}: type {o.type}, expected {e.type}"]
     if o is None or not o.samples:
         return [f"{e.topic}: nothing arrived ({e.what})"]
     problems = []
-    if o.type and o.type != e.type:
-        problems.append(f"{e.topic}: type {o.type}, expected {e.type}")
     stamps = [s for s, _ in o.samples]
     if any(b < a for a, b in zip(stamps, stamps[1:])):
         problems.append(f"{e.topic}: stamps go back")

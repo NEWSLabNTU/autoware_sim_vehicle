@@ -59,3 +59,13 @@ def test_each_fault_is_named():
     assert "nothing arrived" in r["/sensing/imu/imu_link/imu_raw"][0]
     assert "from /clock" in r["/sensing/gnss/gnss_link/nav_sat_fix"][0]
     assert r["/robot_description"] == ["/robot_description: no link 'imu_link' (sensor imu)"]
+
+
+def test_a_publisher_of_another_type_is_named_not_reported_silent():
+    e = C.Expected("/vehicle/status/velocity_status", "autoware_vehicle_msgs/msg/VelocityReport",
+                   10.0, "base_link", "velocity")
+    wrong = C.Observed(type="geometry_msgs/msg/TwistStamped")
+    assert C.check_topic(e, wrong) == [
+        "/vehicle/status/velocity_status: type geometry_msgs/msg/TwistStamped, expected "
+        "autoware_vehicle_msgs/msg/VelocityReport"]
+    assert "nothing arrived" in C.check_topic(e, C.Observed())[0]

@@ -56,13 +56,14 @@ class Check(Node):
         self.vel = None          # (stamp, longitudinal, heading_rate)
         self.steer = 0.0
         self.recording = None    # list the samples go to while a step runs
-        self.create_subscription(Clock, "/clock", self.on_clock, 10)
+        # Best effort takes /clock from a reliable publisher and from a best-effort one.
+        self.create_subscription(Clock, "/clock", self.on_clock, qos_profile_sensor_data)
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              history=HistoryPolicy.KEEP_LAST)
         self.create_subscription(String, "/robot_description", self.on_urdf, latched)
         for e in C.expected(spec, simulator):
-            self.observed[e.topic] = C.Observed(type=e.type)
+            self.observed[e.topic] = C.Observed()
             cls = get_message(e.type)
             self.create_subscription(cls, e.topic, self.on_message(e.topic),
                                      qos_profile_sensor_data)
@@ -119,6 +120,11 @@ class Check(Node):
         self.listening = True
         self.spin_for(listen)
         self.listening = False
+        # The types the graph has on each topic: a publisher of another type never delivers to
+        # our subscription, so without this it would read as "nothing arrived".
+        graph = dict(self.get_topic_names_and_types())
+        for topic, o in self.observed.items():
+            o.type = ",".join(graph.get(topic, []))
         return C.check(self.spec, self.simulator, self.observed, self.urdf)
 
     def dynamics(self):
