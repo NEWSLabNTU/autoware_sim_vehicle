@@ -10,6 +10,9 @@
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
   <exec_depend>autoware_launch</exec_depend>
+  <!-- clock_guard -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>tier4_localization_launch</exec_depend>
 
   <export>

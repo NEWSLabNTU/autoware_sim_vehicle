@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""clock_guard: end the stack when its simulation time goes back (roadmap 051, decision 5).
+
+An episode is a vehicle stack's lifetime: time is monotonic within one simulator episode and
+starts again in the next (a world load, a restarted simulator). Autoware has no answer to a
+clock that goes back -- tf2 clears its buffers, the EKF never recovers -- so this node, which
+the profile declares required (`on_exit="shutdown"`), exits the moment `/clock` goes back,
+and the launch ends every node with it. Whatever started the stack brings it back on the new
+episode. A vehicle bridge should end the stack first (acb_bridge exits on CARLA's episode
+change before publishing anything of the new one); this is the backstop for every simulator.
+
+    ros2 run autoware_sim_profile clock_guard [--ros-args -p tolerance:=0.0]
+
+`tolerance` (s): how far back /clock may step without ending the stack (default 0: any step
+back). Exit status 3 on an episode change.
+"""
+import sys
+
+EPISODE_CHANGED_EXIT = 3
+
+
+def check(last_ns, now_ns, tolerance_ns):
+    """None while time goes on; the step back in ns when it went back past the tolerance."""
+    if last_ns is not None and now_ns < last_ns - tolerance_ns:
+        return last_ns - now_ns
+    return None
+
+
+def main():
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import qos_profile_sensor_data
+    from rosgraph_msgs.msg import Clock
+
+    rclpy.init()
+    node = Node("clock_guard")
+    node.declare_parameter("tolerance", 0.0)
+    tolerance_ns = int(float(node.get_parameter("tolerance").value) * 1e9)
+    state = {"last": None, "back": None}
+
+    def on_clock(msg):
+        now = msg.clock.sec * 1_000_000_000 + msg.clock.nanosec
+        back = check(state["last"], now, tolerance_ns)
+        if back is not None:
+            state["back"] = (state["last"], now)
+        state["last"] = now
+
+    node.create_subscription(Clock, "/clock", on_clock, qos_profile_sensor_data)
+    try:
+        while rclpy.ok() and state["back"] is None:
+            rclpy.spin_once(node, timeout_sec=0.5)
+    except KeyboardInterrupt:
+        return 0
+    if state["back"] is None:
+        return 0
+    last, now = state["back"]
+    node.get_logger().error(
+        f"/clock went back from {last / 1e9:.3f} s to {now / 1e9:.3f} s: the simulator's "
+        "episode changed (a world load, or a restart). Ending this stack: Autoware cannot follow "
+        "time back; it comes back on the new episode (roadmap 051)")
+    node.destroy_node()
+    rclpy.try_shutdown()
+    return EPISODE_CHANGED_EXIT
+
+
+if __name__ == "__main__":
+    sys.exit(main())

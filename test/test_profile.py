@@ -187,3 +187,31 @@ def test_the_profile_starts_no_vehicle_interface_and_no_agent():
     for word in ("acb_bridge", "acb_pilot", "aib_", "exec=\"agent\"", "<arg name=\"relay\""):
         assert word not in code, word
     assert "<arg name=\"launch_vehicle_interface\" value=\"false\"/>" in code
+
+
+def clock_guard():
+    import importlib.machinery
+    import importlib.util
+
+    loader = importlib.machinery.SourceFileLoader("clock_guard", str(PROFILE / "scripts/clock_guard"))
+    spec = importlib.util.spec_from_loader("clock_guard", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def test_clock_guard_ends_on_a_step_back_only():
+    """Roadmap 051: an episode is the stack's lifetime; time going back ends it."""
+    g = clock_guard()
+    assert g.check(None, 5, 0) is None
+    assert g.check(1_000_000_000_000, 1_000_050_000_000, 0) is None
+    assert g.check(1_000_050_000_000, 1_000_050_000_000, 0) is None  # the same frame again
+    assert g.check(1_300_000_000_000, 1_000_050_000_000, 0) == 299_950_000_000
+    assert g.check(1_000_100_000_000, 1_000_050_000_000, 100_000_000) is None
+
+
+def test_the_profile_starts_the_clock_guard_required():
+    launch = read(LAUNCH)
+    assert ('<node pkg="autoware_sim_profile" exec="clock_guard" name="clock_guard" '
+            'output="screen"\n        on_exit="shutdown" if="$(var sim_clock_guard)"/>') in launch
+    assert '<arg name="sim_clock_guard" default="true"' in launch

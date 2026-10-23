@@ -129,6 +129,10 @@
        a recorder. It receives map_path and use_sim_time, and sees every launch argument
        given on the command line; nothing here depends on what it starts. -->
   <arg name="extra_launch" default="" description="path of a launch file to include beside this vehicle side; empty = none"/>
+  <!-- An episode is the stack's lifetime (roadmap 051): when /clock goes back (a world load, a
+       restarted simulator), clock_guard exits and, required, ends the whole stack, which
+       whatever started it brings back on the new episode. -->
+  <arg name="sim_clock_guard" default="true" description="end the stack when /clock goes back"/>
   <!-- Simulation overrides, each switchable (roadmap 017). true: this file launches the
        component with the simulation settings (below). false: the user's autoware.launch.xml
        launches it, unchanged, so a customised component is not replaced. -->
@@ -395,6 +399,9 @@
       <arg name="diagnostic_graph_aggregator_graph_path" value="$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml"/>
     </include>
   </group>
+
+  <node pkg="autoware_sim_profile" exec="clock_guard" name="clock_guard" output="screen"
+        on_exit="shutdown" if="$(var sim_clock_guard)"/>
 
   <group if="$(eval '&quot;$(var extra_launch)&quot; != &quot;&quot;')">
     <include file="$(var extra_launch)">
