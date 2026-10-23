@@ -53,6 +53,9 @@ about half a second there.
 | `/control/command/gear_cmd` | `autoware_vehicle_msgs/msg/GearCommand` | |
 | `/control/command/turn_indicators_cmd`, `hazard_lights_cmd`, `emergency_cmd` | Autoware's | not used by `vehicle_check` |
 
+Both are published reliable with depth 10, as Autoware's controller does; subscribe reliable
+or best effort.
+
 `vehicle_check` sends only `control_cmd` and `gear_cmd` (`DRIVE`), with no engage and no
 control-mode request, and leaves `longitudinal.is_defined_acceleration` false. A vehicle side
 must therefore act on `control_cmd` as it arrives and use `acceleration` whatever that flag
@@ -62,7 +65,8 @@ says (acb_bridge does).
 
 One topic per spec sensor that the vehicle side spawns. Which ones depends on the simulator
 (`--simulator`): `carla` expects the sensors with a `carla` block in the spec, `isaac` those
-with `isaac.enabled` true (the default), `any` the sensors in both sets.
+with `isaac.enabled` true (the default), `any` only the sensors that are in both sets (for
+`tesla_model3`: `top`, `imu_link`, `gnss_link`; not `camera6`).
 
 | sensor (spec) | topic | type | `header.frame_id` | at least, Hz | carla | isaac |
 |---|---|---|---|---|---|---|
@@ -219,8 +223,8 @@ The smallest thing that passes, as a checklist:
 2. Each tick, publish the four status topics, stamped with that tick's time:
    `velocity_status` (`frame_id` `base_link`, speed and yaw rate), `steering_status` (the
    tire angle), `gear_status` (`DRIVE`), `control_mode` (`AUTONOMOUS`). At 20 Hz or more.
-3. Take `control_cmd`: realise `longitudinal.acceleration` (stop at 0 when braking toward a
-   target velocity of 0) and `lateral.steering_tire_angle`. With a kinematic bicycle model,
+3. Take `control_cmd`: realise `longitudinal.acceleration` (a car braking at or toward zero
+   speed stops and stays at 0; it never rolls backwards on a brake command) and `lateral.steering_tire_angle`. With a kinematic bicycle model,
    `yaw_rate = v tan(delta) / wheel_base`, a fake passes the dynamics run exactly; a real
    simulator's physics passes when it tracks within the limits above.
 4. Publish each spec sensor the simulator has on its `topic`, in its `frame`, at its rate,
