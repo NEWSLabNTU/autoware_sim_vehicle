@@ -215,3 +215,31 @@ def test_the_profile_starts_the_clock_guard_required():
     assert ('<node pkg="autoware_sim_profile" exec="clock_guard" name="clock_guard" '
             'output="screen"\n        on_exit="shutdown" if="$(var sim_clock_guard)"/>') in launch
     assert '<arg name="sim_clock_guard" default="true"' in launch
+
+
+def _check_launch_args():
+    import importlib.machinery
+    import importlib.util
+    path = PROFILE / "scripts" / "check_launch_args"
+    loader = importlib.machinery.SourceFileLoader("check_launch_args", str(path))
+    spec = importlib.util.spec_from_loader("check_launch_args", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def test_retired_launch_arguments_are_refused_by_name():
+    m = _check_launch_args()
+    assert m.problems(["map_path:=/x", "sim_control:=false", "vehicle_model:=tesla_model3"]) == []
+    p = m.problems(["carla_control:=false", "vehicle_model:=acb_vehicle"])
+    assert len(p) == 2
+    assert "pass sim_control:=false" in p[0]
+    assert "pass vehicle_model:=tesla_model3" in p[1]
+    assert m.main(["carla_planning:=true"]) == 2
+
+
+def test_every_renamed_argument_exists_in_the_profile():
+    m = _check_launch_args()
+    launch = (PROFILE / "launch" / "autoware.launch.xml").read_text()
+    for new in m.RENAMED.values():
+        assert f'<arg name="{new}"' in launch, new

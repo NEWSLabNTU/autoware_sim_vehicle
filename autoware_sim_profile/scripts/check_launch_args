@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""check_launch_args: refuse the launch arguments roadmap 051 renamed, naming the new ones.
+
+ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
+switch before it became `sim_control` -- would be dropped without a word and the run would
+use the default. Every wrapper that hands its arguments to the profile (swb's `just ego-av`,
+`ego-isaac`, `bg-av`; acb's `just autoware` and `sim`; aib's `just autoware`) runs this first:
+
+    check_launch_args [name:=value ...]      exit 0, or 2 with one line per retired argument
+"""
+import sys
+
+# Renamed arguments: old name -> new name.
+RENAMED = {
+    "carla_control": "sim_control",
+    "carla_localization": "sim_localization",
+    "carla_perception": "sim_perception",
+    "carla_planning": "sim_planning",
+    "carla_system": "sim_system",
+    "carla_lat_controller_param_path": "sim_lat_controller_param_path",
+    "carla_loc_config_path": "sim_loc_config_path",
+    "carla_mrm_handler_path": "sim_mrm_handler_path",
+    "carla_system_topics_path": "sim_system_topics_path",
+}
+# Retired values: (argument, old value) -> the value that replaced it.
+RETIRED_VALUES = {
+    ("vehicle_model", "acb_vehicle"): "tesla_model3",
+    ("vehicle_model", "aib_vehicle"): "tesla_model3",
+    ("sensor_model", "acb_sensor_kit"): "tesla_model3_sensor_kit",
+    ("sensor_model", "aib_sensor_kit"): "tesla_model3_sensor_kit",
+}
+
+
+def problems(args):
+    out = []
+    for a in args:
+        if ":=" not in a:
+            continue
+        name, value = a.split(":=", 1)
+        if name in RENAMED:
+            out.append(f"{name}:= was renamed; pass {RENAMED[name]}:={value} instead")
+        new = RETIRED_VALUES.get((name, value))
+        if new:
+            out.append(f"{name}:={value} is gone (the per-car packages, roadmap 051); "
+                       f"pass {name}:={new}")
+    return out
+
+
+def main(argv):
+    found = problems(argv)
+    for p in found:
+        print(f"[launch] {p}", file=sys.stderr)
+    return 2 if found else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
