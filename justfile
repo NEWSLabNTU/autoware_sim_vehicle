@@ -20,11 +20,15 @@ generate:
 check-generated:
     python3 -m autoware_gen --check
 
-# The generated packages are current; the profile's copies of autoware_launch's components
-# still derive from upstream's
-check: check-generated
+# The generated packages are current, and the unit tests
+test: check-generated
     python3 -m pytest -q test
     cd autoware_sim_check && python3 -m pytest -q -p no:cacheprovider test
+
+# The tests, pyflakes, and the profile's copies of autoware_launch's components still
+# derive from upstream's
+check: test
+    python3 -m pyflakes autoware_gen test autoware_sim_check autoware_sim_pilot autoware_sim_profile
     scripts/sync_control_component.sh --check
     scripts/sync_perception_component.sh --check
     scripts/sync_planning_component.sh --check
