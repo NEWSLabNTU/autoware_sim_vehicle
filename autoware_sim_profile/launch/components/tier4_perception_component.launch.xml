@@ -4,7 +4,8 @@
        tier4_perception_component.launch.xml; do not edit by hand. Only change:
        traffic_light_recognition/fusion_only is an argument instead of hard-coded false,
        the include is autoware_sim_profile's perception.launch.xml with object_recognition,
-       and multi_object_tracker reads autoware_sim_profile's node parameters (issue 027). -->
+       multi_object_tracker reads autoware_sim_profile's node parameters (issue 027), and so
+       does detection's compare-map filter (issue 029). -->
   <arg name="object_recognition" default="true" description="launch object recognition; false when another publisher (acb ground truth) provides objects"/>
   <arg name="traffic_light_recognition/fusion_only" default="false" description="skip the camera branch of traffic light recognition; keep fusion, arbiter and crosswalk estimator"/>
   <!-- cspell: ignore semseg -->
@@ -144,7 +145,7 @@
     />
     <arg
       name="object_recognition_detection_pointcloud_map_filter_param_path"
-      value="$(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml"
+      value="$(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml"
     />
     <arg
       name="object_recognition_detection_fusion_sync_param_path"
