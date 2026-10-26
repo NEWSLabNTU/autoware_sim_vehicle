@@ -1,0 +1,10 @@
+# Generated from sim_vehicle_spec/vehicles/drift_mustang.yaml (spec_hash 1816a24d44d1c9a311fe76471d9c46563182ebff1e893c34bf22d21f88f87cec) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# base_link -> sensor_kit_base_link (the kit's mount).
+base_link:
+  sensor_kit_base_link:
+    x: 0.9
+    y: 0.0
+    z: 1.8
+    roll: 0.0
+    pitch: 0.0
+    yaw: 0.0

@@ -1,0 +1,7 @@
+# accel_map.csv and brake_map.csv beside this file: Autoware's pedal maps for this car,
+# measured on CARLA (acb's scripts/build_longitudinal_maps.py), read by acb_bridge and by
+# Autoware's raw_vehicle_cmd_converter. Measured, not generated: what they were measured
+# against is recorded here and checked by `just check-generated`.
+measured_on: spec
+physics_hash: 933597f525ffc121a9d64cd055d27330ceb44857c1a54013caf847b07731092c
+basis: "vehicle.ford.mustang, CARLA tick 0.050 s, physics substeps of 0.0031 s (max 16) -- the timing swb_carla_world uses, 2026-10-27 (newslab-118-server, CARLA 2010). The throttle ramp at pedal 0 coasted only from about 25 m/s, so accel_map.csv pedal 0 is brake_map.csv pedal 0, measured at every speed (the builder keeps the two rows identical)"

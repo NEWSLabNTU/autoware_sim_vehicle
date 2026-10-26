@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The car's vehicle interface: nothing to launch here.
+
+  Included by Autoware's tier4_vehicle_launch when vehicle_model:=drift_mustang and
+  launch_vehicle_interface:=true. On a simulator the vehicle interface (/vehicle/status/*,
+  /control/command/*) is the simulator's vehicle bridge (acb_bridge on CARLA; on Isaac Sim the
+  process that steps the world), started beside Autoware by the bridge's own launch; the
+  Autoware profile (autoware_sim_profile) passes launch_vehicle_interface:=false.
+-->
+<launch>
+  <arg name="vehicle_id" default="default"/>
+  <arg name="raw_vehicle_cmd_converter_param_path" default=""/>
+  <arg name="initial_engage_state" default="false"/>
+</launch>
