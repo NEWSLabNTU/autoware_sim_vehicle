@@ -154,6 +154,8 @@
        demo tour (roadmap 033). Another value loads upstream's file with only max_vel
        changed, written by autoware_sim_profile's planning_common_param. Needs sim_planning. -->
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
+  <arg name="planning_common_param_base" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml"
+       description="the planning common parameter file max_velocity is applied onto (its acceleration and jerk limits); upstream's by default"/>
   <arg name="diagnostic_graph_path" default="$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml"
        description="the diagnostic graph the operation modes are judged by; the profile's by default"/>
   <arg name="velocity_smoother_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml"
@@ -350,7 +352,7 @@
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
       <arg name="planning_common_param_path"
-           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/planning_common_param $(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml $(var max_velocity)')"/>
+           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/planning_common_param $(var planning_common_param_base) $(var max_velocity)')"/>
       <arg name="planning_velocity_smoother_param_path" value="$(var velocity_smoother_param_path)"/>
     </include>
     <node pkg="topic_tools" exec="relay" name="trajectory_relay">

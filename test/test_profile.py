@@ -119,8 +119,10 @@ def test_profile_launches_planning_with_max_velocity():
             "'true'&quot;)\">") in launch
     assert "$(find-pkg-share autoware_sim_profile)/launch/components/tier4_planning_component.launch.xml" in launch
     assert ("value=\"$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/"
-            "planning_common_param $(find-pkg-share autoware_launch)/config/planning/"
-            "scenario_planning/common/common.param.yaml $(var max_velocity)')\"") in launch
+            "planning_common_param $(var planning_common_param_base) $(var max_velocity)')\"") in launch
+    # the base is upstream's file unless a car names its own (autoware-drift)
+    assert ("<arg name=\"planning_common_param_base\" default=\"$(find-pkg-share autoware_launch)/"
+            "config/planning/scenario_planning/common/common.param.yaml\"") in launch
     assert "<node pkg=\"topic_tools\" exec=\"relay\" name=\"trajectory_relay\">" in launch
     component = read("launch/components/tier4_planning_component.launch.xml")
     assert "<arg name=\"planning_common_param_path\" default=" in component
