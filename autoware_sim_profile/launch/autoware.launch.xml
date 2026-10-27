@@ -154,6 +154,8 @@
        demo tour (roadmap 033). Another value loads upstream's file with only max_vel
        changed, written by autoware_sim_profile's planning_common_param. Needs sim_planning. -->
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
+  <arg name="vehicle_cmd_gate_param_path" default="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
+       description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
   <arg name="planning_common_param_base" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml"
        description="the planning common parameter file max_velocity is applied onto (its acceleration and jerk limits); upstream's by default"/>
   <arg name="diagnostic_graph_path" default="$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml"
@@ -326,13 +328,14 @@
 
   <!-- Include control with CARLA MPC params: autoware_sim_profile's copy of autoware_launch's
        component (scripts/sync_control_component.sh; run it with check after an Autoware
-       upgrade), identical except that the lateral parameter file is an argument. -->
+       upgrade), identical except that the lateral and the gate's parameter files are arguments. -->
   <group if="$(eval &quot;'$(var control)' == 'true' and '$(var sim_control)' == 'true'&quot;)">
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_control_component.launch.xml">
       <arg name="module_preset" value="$(var control_module_preset)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
       <arg name="lat_controller_param_path" value="$(var sim_lat_controller_param_path)"/>
+      <arg name="gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>
       <!-- Declared by autoware.launch.xml, which includes the component upstream -->
       <arg name="vehicle_id" value="$(env VEHICLE_ID default)"/>
       <arg name="check_external_emergency_heartbeat" value="false"/>
