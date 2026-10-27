@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""check_launch_args: refuse the launch arguments roadmap 051 renamed, naming the new ones.
+"""check_launch_args: refuse the launch arguments roadmap 051 renamed, naming the new ones, and a
+value outside an argument's choices (ndt:= autoware or cuda).
 
 ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
 switch before it became `sim_control` -- would be dropped without a word and the run would
@@ -32,6 +33,12 @@ RETIRED_VALUES = {
 }
 
 
+# Arguments with a closed set of values: a value outside it would launch without the part.
+CHOICES = {
+    "ndt": ("autoware", "cuda"),
+}
+
+
 def problems(args):
     out = []
     for a in args:
@@ -40,6 +47,8 @@ def problems(args):
         name, value = a.split(":=", 1)
         if name in RENAMED:
             out.append(f"{name}:= was renamed; pass {RENAMED[name]}:={value} instead")
+        if name in CHOICES and value not in CHOICES[name]:
+            out.append(f"{name}:={value} is not one of {', '.join(CHOICES[name])}")
         new = RETIRED_VALUES.get((name, value))
         if new:
             out.append(f"{name}:={value} is gone (the per-car packages, roadmap 051); "

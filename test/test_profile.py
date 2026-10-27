@@ -245,3 +245,20 @@ def test_every_renamed_argument_exists_in_the_profile():
     launch = (PROFILE / "launch" / "autoware.launch.xml").read_text()
     for new in m.RENAMED.values():
         assert f'<arg name="{new}"' in launch, new
+
+
+def test_ndt_defaults_to_autowares_and_cuda_swaps_the_localization_launch():
+    """swb roadmap 057: ndt:=cuda runs cuda_ndt_matcher's localization launch with this
+    profile's localization parameters; the default stays Autoware's own component."""
+    launch = read(LAUNCH)
+    assert arg_default(launch, "ndt") == "autoware"
+    assert "'$(var sim_localization)' == 'true' and '$(var ndt)' == 'autoware'" in launch
+    assert "'$(var sim_localization)' == 'true' and '$(var ndt)' == 'cuda'" in launch
+    assert "$(find-pkg-share cuda_ndt_matcher_launch)/launch/cuda_localization.launch.xml" in launch
+    assert '<arg name="localization_config_path" value="$(var sim_loc_config_path)"/>' in launch
+
+
+def test_ndt_takes_only_its_choices():
+    m = _check_launch_args()
+    assert m.problems(["ndt:=autoware"]) == [] and m.problems(["ndt:=cuda"]) == []
+    assert m.problems(["ndt:=gpu"]) == ["ndt:=gpu is not one of autoware, cuda"]
