@@ -1,4 +1,4 @@
-# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 862c2168f77eb4bd414dd2bbea373da7002aa72ca0e4ee8b3c9a55071946c510) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 471b03c3e3b2bf688e3d9fa5b17ccf6cb084fcdb8a4547da18221654baf90d69) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
 # Autoware's vehicle_info for tesla_model3 (autoware_vehicle_info_utils::VehicleInfo).
 # Length 4.792 m, width 2.163 m, height 1.488 m.
 /**:
