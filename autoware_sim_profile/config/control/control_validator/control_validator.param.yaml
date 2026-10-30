@@ -1,0 +1,34 @@
+# autoware_launch 1.5.0's control_validator.param.yaml, with the simulation's latency (below).
+/**:
+  ros__parameters:
+    # If the number of consecutive invalid predicted_path exceeds this threshold, the Diag will be set to ERROR.
+    # (For example, threshold = 1 means, even if the predicted_path is invalid, Diag will not be ERROR if
+    #  the next predicted_path is valid.)
+    diag_error_count_threshold: 0
+
+    display_on_terminal: false # show error msg on terminal
+
+    thresholds:
+      max_distance_deviation: 1.0
+      lateral_jerk: 10.0
+      acc_error_offset: 0.8
+      acc_error_scale: 0.2
+      rolling_back_velocity: 0.5
+      over_velocity_offset: 2.0
+      over_velocity_ratio: 0.2
+      overrun_stop_point_dist: 0.8
+      will_overrun_stop_point_dist: 1.0
+      assumed_limit_acc: 5.0
+      assumed_delay_time: 0.2
+      # 0.01 s upstream. In simulation /clock steps a frame at a time (50 ms at the Isaac
+      # runner's 20 Hz), so a control command checked one tick after it was stamped reads 50 ms
+      # late however fast the stack is, and the check fails, and an MRM follows, wherever a
+      # frame is heavy (dense trees on the NTU twin, scenario-world-bridge roadmap 059). Two
+      # ticks.
+      nominal_latency: 0.1
+      yaw_deviation_error: 1.0
+      yaw_deviation_warn: 0.5
+
+    acc_lpf_gain: 0.97 # Time constant 1.11s
+    vel_lpf_gain: 0.9 # Time constant 0.33
+    hold_velocity_error_until_stop: true
