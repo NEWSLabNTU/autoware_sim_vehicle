@@ -32,3 +32,4 @@ check: test
     scripts/sync_control_component.sh --check
     scripts/sync_perception_component.sh --check
     scripts/sync_planning_component.sh --check
+    scripts/sync_localization_component.sh --check

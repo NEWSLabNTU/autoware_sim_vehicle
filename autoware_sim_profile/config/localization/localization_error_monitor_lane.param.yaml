@@ -1,0 +1,20 @@
+# The localization error monitor at a lane's half width (swb roadmap 063 d), for a pose that is
+# expected to drift (a vision localizer with ndt:=none): selected with the profile's
+# localization_error_monitor_param_path:=<this file>. Only the lateral thresholds differ from
+# localization_error_monitor.param.yaml (test_profile.py holds the rest equal):
+#   - the ellipse's lateral size (scale x the EKF's 1-sigma across the heading) at 1.75 m, half
+#     of a 3.5 m lane, is where a car centred on its estimate can no longer be sure it is in
+#     its lane;
+#   - WARN and ERROR both at 1.75 m: the diagnostic graph wants OK for autonomous mode, so a
+#     WARN already ends it, and the base file's 1.0 m WARN would end a run 0.75 m early.
+# The long axis (along the road too) keeps the base file's 5 / 10 m: an along-track error does
+# not take the car out of its lane. scale stays 3.0, as in the base file and the EKF's.
+# This judges the EKF's covariance, which follows the covariance the pose source reports; it
+# is not the true error (the harness measures that against the ground truth).
+/**:
+  ros__parameters:
+    scale: 3.0
+    error_ellipse_size: 10.0
+    warn_ellipse_size: 5.0
+    error_ellipse_size_lateral_direction: 1.75
+    warn_ellipse_size_lateral_direction: 1.75

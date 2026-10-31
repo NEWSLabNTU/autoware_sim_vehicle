@@ -7,7 +7,8 @@
      Architecture:
      - Sets use_sim_time globally via set_parameter (fixes ROS 2 parameter propagation issue)
      - Includes autoware.launch.xml with launch_localization=false
-     - Includes tier4_localization_component separately with the simulation-tuned NDT parameters
+     - Includes localization separately with the simulation-tuned NDT parameters (ndt:=autoware,
+       cuda, or none: no scan matcher, the pose from whoever publishes NDT's topic)
      - Points traffic light recognition at the simulated car's single camera, published as
        camera6 because that is a namespace upstream ships a detector parameter file for
      - Starts no vehicle interface and needs no scenario relay: it is the same with or
@@ -137,11 +138,16 @@
        component with the simulation settings (below). false: the user's autoware.launch.xml
        launches it, unchanged, so a customised component is not replaced. -->
   <arg name="sim_localization" default="true" description="simulation-tuned localization params"/>
-  <!-- The NDT scan matcher: autoware (Autoware's own, OpenMP) or cuda (NEWSLabNTU's
+  <!-- The NDT scan matcher: autoware (Autoware's own, OpenMP), cuda (NEWSLabNTU's
        cuda_ndt_matcher: the same topics and parameters on the GPU, its own localization launch
        with this profile's EKF, pose initializer and error monitor parameters; swb builds it in
-       third_party/cuda_ndt_matcher and the ego recipes source it). Needs sim_localization. -->
-  <arg name="ndt" default="autoware" description="NDT scan matcher: autoware or cuda"/>
+       third_party/cuda_ndt_matcher and the ego recipes source it) or none (swb roadmap 063 d:
+       no scan matcher and no NDT input filters; the EKF, the twist estimator, the pose
+       initializer, the stop filter and the error monitor as with autoware, and the EKF's pose
+       input stays /localization/pose_estimator/pose_with_covariance for whoever publishes
+       there, such as a vision localizer; the pose initializer passes /initialpose through
+       without an alignment). Needs sim_localization. -->
+  <arg name="ndt" default="autoware" description="NDT scan matcher: autoware, cuda or none"/>
   <arg name="sim_perception" default="true" description="selectable lidar model, fusion-only traffic lights"/>
   <arg name="sim_system" default="true" description="simulation component-state topics, MRM params, diagnostic graph"/>
   <!-- MPC's automatic steering offset removal off (issue 025): it learns from collisions
@@ -163,8 +169,12 @@
        description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
   <arg name="planning_common_param_base" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml"
        description="the planning common parameter file max_velocity is applied onto (its acceleration and jerk limits); upstream's by default"/>
-  <arg name="diagnostic_graph_path" default="$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml"
-       description="the diagnostic graph the operation modes are judged by; the profile's by default"/>
+  <!-- With ndt:=none the default is the same graph without NDT's scan_matching_status, which
+       nothing publishes then (a stale unit would keep autonomous mode unavailable). A graph of
+       your own has to leave it out too; check_launch_args refuses one that names it. -->
+  <arg name="diagnostic_graph_path"
+       default="$(eval &quot;'$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim-ndt-none.yaml' if '$(var ndt)' == 'none' else '$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml'&quot;)"
+       description="the diagnostic graph the operation modes are judged by; the profile's by default (without NDT's status under ndt:=none)"/>
   <arg name="velocity_smoother_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml"
        description="the velocity smoother's parameter file; upstream's (a 1.0 m/s^2 lateral limit in bends) by default"/>
   <!-- Autoware's deprecated (tier4) API, which autoware_launch turns on only for
@@ -185,6 +195,17 @@
 
   <!-- CARLA-optimized localization config path -->
   <arg name="sim_loc_config_path" default="$(find-pkg-share autoware_sim_profile)/config/localization"/>
+  <!-- The localization error monitor's and the EKF's parameter files: their covariance-ellipse
+       thresholds decide when localization counts as lost (a WARN already takes autonomous mode
+       away: the diagnostic graph wants OK). The defaults are the profile's relaxed NDT ones;
+       localization_error_monitor_lane.param.yaml and ekf_localizer_lane.param.yaml put the
+       lateral threshold at a lane's half width, 1.75 m (swb roadmap 063 d). The error monitor's
+       reaches ndt:=autoware and none, not cuda (cuda_localization.launch.xml hard-codes it;
+       check_launch_args refuses the pair); the EKF's reaches all three. -->
+  <arg name="localization_error_monitor_param_path" default="$(var sim_loc_config_path)/localization_error_monitor.param.yaml"
+       description="localization error monitor parameter file (ndt:=autoware or none)"/>
+  <arg name="ekf_localizer_param_path" default="$(var sim_loc_config_path)/ekf_localizer.param.yaml"
+       description="EKF localizer parameter file"/>
   <!-- CARLA-optimized system topics config - excludes traffic light topic monitoring -->
   <arg name="sim_system_topics_path" default="$(find-pkg-share autoware_sim_profile)/config/system/component_state_monitor/topics.yaml"/>
   <!-- CARLA-optimized MRM handler config - relaxed timeouts for simulation -->
@@ -370,11 +391,20 @@
   </group>
 
   <!-- Include localization with CARLA-optimized config
-       This uses autoware_sim_profile/config/localization with lowered NDT threshold -->
-  <group if="$(eval &quot;'$(var localization)' == 'true' and '$(var sim_localization)' == 'true' and '$(var ndt)' == 'autoware'&quot;)">
-    <include file="$(find-pkg-share autoware_launch)/launch/components/tier4_localization_component.launch.xml">
+       This uses autoware_sim_profile/config/localization with lowered NDT threshold.
+       ndt:=autoware and ndt:=none both run this profile's copy of upstream's component (the
+       error monitor's and the EKF's parameter files made arguments): autoware with
+       pose_source ndt, as upstream; none with pose_source none, which names no estimator
+       upstream knows, so tier4_localization_launch starts no pose estimator, no NDT input
+       filters, and tells the pose initializer ndt_enabled false (it then publishes the
+       requested pose, with its output covariance, on /initialpose3d and starts the EKF). -->
+  <group if="$(eval &quot;'$(var localization)' == 'true' and '$(var sim_localization)' == 'true' and '$(var ndt)' in ('autoware', 'none')&quot;)">
+    <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_localization_component.launch.xml">
       <!-- Use CARLA-optimized localization config path -->
       <arg name="loc_config_path" value="$(var sim_loc_config_path)"/>
+      <arg name="error_monitor_param_path" value="$(var localization_error_monitor_param_path)"/>
+      <arg name="ekf_param_path" value="$(var ekf_localizer_param_path)"/>
+      <arg name="pose_source" value="$(eval &quot;'ndt' if '$(var ndt)' == 'autoware' else 'none'&quot;)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
       <!-- Required by tier4_localization_component but not declared with a default -->
@@ -384,6 +414,7 @@
   <group if="$(eval &quot;'$(var localization)' == 'true' and '$(var sim_localization)' == 'true' and '$(var ndt)' == 'cuda'&quot;)">
     <include file="$(find-pkg-share cuda_ndt_matcher_launch)/launch/cuda_localization.launch.xml">
       <arg name="localization_config_path" value="$(var sim_loc_config_path)"/>
+      <arg name="ekf_localizer_param_path" value="$(var ekf_localizer_param_path)"/>
     </include>
   </group>
 

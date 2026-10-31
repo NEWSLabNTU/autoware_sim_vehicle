@@ -1,0 +1,12 @@
+# The profile's diagnostic graph for ndt:=none (swb roadmap 063 d): autoware-sim.yaml without
+# NDT's scan_matching_status. With no scan matcher nothing publishes it, and a stale unit keeps
+# /autoware/localization, and with it autonomous mode, unavailable. The pose source's own
+# health is judged by what it feeds: the EKF's sensor_fusion_status (pose updates and the
+# covariance ellipse) and the localization error monitor's accuracy stay.
+# The removal drops the unit and its link from /autoware/localization's list; the graph
+# aggregator's `edits` (type remove) do exactly that.
+files:
+  - { path: $(dirname)/autoware-sim.yaml }
+
+edits:
+  - { type: remove, path: /autoware/localization/scan_matching_status }

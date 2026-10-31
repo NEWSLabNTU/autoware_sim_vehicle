@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """check_launch_args: refuse the launch arguments roadmap 051 renamed, naming the new ones, and a
-value outside an argument's choices (ndt:= autoware or cuda).
+value outside an argument's choices (ndt:= autoware, cuda or none), and a pair that would
+launch without what one of them asks for (pair_problems).
 
 ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
 switch before it became `sim_control` -- would be dropped without a word and the run would
@@ -8,8 +9,9 @@ use the default. Every wrapper that hands its arguments to the profile (swb's `j
 `ego-isaac`, `bg-av`; aib's `just autoware`) runs this first; acb's `just autoware` and `sim`
 take no profile arguments at all (`map:=` only) and refuse the rest:
 
-    check_launch_args [name:=value ...]      exit 0, or 2 with one line per retired argument
+    check_launch_args [name:=value ...]      exit 0, or 2 with one line per problem
 """
+import os
 import sys
 
 # Renamed arguments: old name -> new name.
@@ -35,12 +37,31 @@ RETIRED_VALUES = {
 
 # Arguments with a closed set of values: a value outside it would launch without the part.
 CHOICES = {
-    "ndt": ("autoware", "cuda"),
+    "ndt": ("autoware", "cuda", "none"),
 }
+
+
+def pair_problems(given):
+    """Arguments that are valid alone but not together (swb roadmap 063 d)."""
+    out = []
+    ndt = given.get("ndt", "autoware")
+    if ndt == "cuda" and "localization_error_monitor_param_path" in given:
+        # cuda_localization.launch.xml hard-codes the error monitor's file
+        out.append("localization_error_monitor_param_path:= does not reach ndt:=cuda's "
+                   "error monitor; use ndt:=autoware or ndt:=none")
+    graph = given.get("diagnostic_graph_path")
+    if ndt == "none" and graph and os.path.isfile(graph):
+        with open(graph, encoding="utf-8", errors="replace") as f:
+            if "ndt_scan_matcher" in f.read():
+                out.append(f"diagnostic_graph_path:={graph} judges ndt_scan_matcher, which "
+                           "ndt:=none does not start (a stale unit: never autonomous); leave "
+                           "it out, as the profile's autoware-sim-ndt-none.yaml does")
+    return out
 
 
 def problems(args):
     out = []
+    given = dict(a.split(":=", 1) for a in args if ":=" in a)
     for a in args:
         if ":=" not in a:
             continue
@@ -53,7 +74,7 @@ def problems(args):
         if new:
             out.append(f"{name}:={value} is gone (the per-car packages, roadmap 051); "
                        f"pass {name}:={new}")
-    return out
+    return out + pair_problems(given)
 
 
 def main(argv):
