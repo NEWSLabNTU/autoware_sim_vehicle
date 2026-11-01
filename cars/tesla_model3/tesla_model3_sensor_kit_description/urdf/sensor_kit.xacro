@@ -14,7 +14,7 @@
     </joint>
     <link name="sensor_kit_base_link"/>
 
-    <!-- top: lidar, published in top on /sensing/lidar/top/pointcloud_before_sync -->
+    <!-- top (lidar) published in top on /sensing/lidar/top/pointcloud_before_sync -->
     <joint name="top_base_link_joint" type="fixed">
       <origin xyz="${calibration['sensor_kit_base_link']['velodyne_top_base_link']['x']} ${calibration['sensor_kit_base_link']['velodyne_top_base_link']['y']} ${calibration['sensor_kit_base_link']['velodyne_top_base_link']['z']}"
               rpy="${calibration['sensor_kit_base_link']['velodyne_top_base_link']['roll']} ${calibration['sensor_kit_base_link']['velodyne_top_base_link']['pitch']} ${calibration['sensor_kit_base_link']['velodyne_top_base_link']['yaw']}"/>
@@ -29,7 +29,7 @@
     </joint>
     <link name="top"/>
 
-    <!-- camera6: camera, published in camera6/camera_optical_link on /sensing/camera/camera6/image_raw -->
+    <!-- camera6 (camera) published in camera6/camera_optical_link on /sensing/camera/camera6/image_raw -->
     <joint name="camera6_camera_link_joint" type="fixed">
       <origin xyz="${calibration['sensor_kit_base_link']['camera6/camera_link']['x']} ${calibration['sensor_kit_base_link']['camera6/camera_link']['y']} ${calibration['sensor_kit_base_link']['camera6/camera_link']['z']}"
               rpy="${calibration['sensor_kit_base_link']['camera6/camera_link']['roll']} ${calibration['sensor_kit_base_link']['camera6/camera_link']['pitch']} ${calibration['sensor_kit_base_link']['camera6/camera_link']['yaw']}"/>
@@ -44,7 +44,7 @@
     </joint>
     <link name="camera6/camera_optical_link"/>
 
-    <!-- imu: imu, published in imu_link on /sensing/imu/imu_link/imu_raw -->
+    <!-- imu (imu) published in imu_link on /sensing/imu/imu_link/imu_raw -->
     <joint name="imu_link_joint" type="fixed">
       <origin xyz="${calibration['sensor_kit_base_link']['imu_link']['x']} ${calibration['sensor_kit_base_link']['imu_link']['y']} ${calibration['sensor_kit_base_link']['imu_link']['z']}"
               rpy="${calibration['sensor_kit_base_link']['imu_link']['roll']} ${calibration['sensor_kit_base_link']['imu_link']['pitch']} ${calibration['sensor_kit_base_link']['imu_link']['yaw']}"/>
@@ -53,7 +53,7 @@
     </joint>
     <link name="imu_link"/>
 
-    <!-- gnss: gnss, published in gnss_link on /sensing/gnss/gnss_link/nav_sat_fix -->
+    <!-- gnss (gnss) published in gnss_link on /sensing/gnss/gnss_link/nav_sat_fix -->
     <joint name="gnss_link_joint" type="fixed">
       <origin xyz="${calibration['sensor_kit_base_link']['gnss_link']['x']} ${calibration['sensor_kit_base_link']['gnss_link']['y']} ${calibration['sensor_kit_base_link']['gnss_link']['z']}"
               rpy="${calibration['sensor_kit_base_link']['gnss_link']['roll']} ${calibration['sensor_kit_base_link']['gnss_link']['pitch']} ${calibration['sensor_kit_base_link']['gnss_link']['yaw']}"/>

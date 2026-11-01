@@ -127,7 +127,7 @@ def sensor_kit_xacro(spec, header):
         c = f"calibration['sensor_kit_base_link']['{key}']"
         lines += [
             "",
-            f"    <!-- {name}: {s['type']}, published in {frame} on {s['topic']} -->",
+            f"    <!-- {name} ({s['type']}) published in {frame} on {s['topic']} -->",
             f'    <joint name="{_joint(link)}" type="fixed">',
             f'      <origin xyz="${{{c}[\'x\']}} ${{{c}[\'y\']}} ${{{c}[\'z\']}}"',
             f'              rpy="${{{c}[\'roll\']}} ${{{c}[\'pitch\']}} ${{{c}[\'yaw\']}}"/>',
@@ -197,7 +197,7 @@ def outputs(specs_dir, root):
         header = emit.header(spec, TOOL, rel)
         base = f"cars/{car}"
         for t in sorted(TEMPLATES.rglob("*")):
-            if (not t.is_file() or t.name == "COLCON_IGNORE"
+            if (not t.is_file() or t.name in ("COLCON_IGNORE", "CATKIN_IGNORE")
                     or t.relative_to(TEMPLATES).parts[0] == "individual_params"):
                 continue
             dest = t.relative_to(TEMPLATES).as_posix().replace("@CAR@", car).replace("@KIT@", kit)

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
   <!--
-    The car's body for RViz: a box of vehicle_info's footprint and height, base_link
+    The car's body for RViz, a box of vehicle_info's footprint and height, base_link
     (the rear axle centre on the ground) at its origin. Physics, collision and the rendered
     body are the simulator's; this only gives base_link and a shape to look at.
   -->
