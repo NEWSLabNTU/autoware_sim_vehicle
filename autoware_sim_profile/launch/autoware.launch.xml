@@ -175,6 +175,11 @@
   <arg name="diagnostic_graph_path"
        default="$(eval &quot;'$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim-ndt-none.yaml' if '$(var ndt)' == 'none' else '$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml'&quot;)"
        description="the diagnostic graph the operation modes are judged by; the profile's by default (without NDT's status under ndt:=none)"/>
+  <!-- behavior_path_planner's drivable-area expansion: the profile's copy widens the ego footprint it
+       expands tight turns by (extra_width, extra_front_overhang 0.15 m; swb roadmap 072, the tour:
+       path_optimizer stopped at "outside drivable area" in 83-84 deg connectors). Every scenario. -->
+  <arg name="drivable_area_expansion_param_path" default="$(find-pkg-share autoware_sim_profile)/config/planning/behavior_path_planner/drivable_area_expansion.param.yaml"
+       description="behavior_path_planner's drivable_area_expansion.param.yaml (the profile's: wider ego margins in tight turns)"/>
   <arg name="velocity_smoother_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml"
        description="the velocity smoother's parameter file; upstream's (a 1.0 m/s^2 lateral limit in bends) by default"/>
   <!-- Autoware's deprecated (tier4) API, which autoware_launch turns on only for
@@ -383,6 +388,7 @@
       <arg name="planning_common_param_path"
            value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/planning_common_param $(var planning_common_param_base) $(var max_velocity)')"/>
       <arg name="planning_velocity_smoother_param_path" value="$(var velocity_smoother_param_path)"/>
+      <arg name="planning_drivable_area_expansion_param_path" value="$(var drivable_area_expansion_param_path)"/>
     </include>
     <node pkg="topic_tools" exec="relay" name="trajectory_relay">
       <param name="input_topic" value="/planning/trajectory"/>
