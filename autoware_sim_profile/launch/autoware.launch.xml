@@ -155,6 +155,11 @@
        differently from a fresh one. Everything else is upstream's control component. -->
   <arg name="sim_control" default="true" description="simulation MPC params (no steering offset learning)"/>
   <arg name="sim_lat_controller_param_path" default="$(find-pkg-share autoware_sim_profile)/config/control/trajectory_follower/lateral/mpc.param.yaml"/>
+  <!-- The longitudinal PID's slope compensation reaches +/-0.2 rad of pitch (upstream +/-0.1): the
+       NTU car-park ramp is 10.9 deg, whose 1.85 m/s^2 of gravity the 0.1 cap compensated only to
+       0.98, so the car rolled back at engage and stalled at rest on the downhill (swb roadmap 072).
+       Every scenario under sim_control. -->
+  <arg name="sim_lon_controller_param_path" default="$(find-pkg-share autoware_sim_profile)/config/control/trajectory_follower/longitudinal/pid.param.yaml"/>
   <!-- Planning from this profile's copy of upstream's component, which takes the common parameter
        file as an argument so max_velocity can reach it; at the default that file is
        upstream's own and the stack is upstream's. -->
@@ -359,13 +364,14 @@
 
   <!-- Include control with CARLA MPC params: autoware_sim_profile's copy of autoware_launch's
        component (scripts/sync_control_component.sh; run it with check after an Autoware
-       upgrade), identical except that the lateral and the gate's parameter files are arguments. -->
+       upgrade), identical except that the lateral, the longitudinal and the gate's parameter files are arguments. -->
   <group if="$(eval &quot;'$(var control)' == 'true' and '$(var sim_control)' == 'true'&quot;)">
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_control_component.launch.xml">
       <arg name="module_preset" value="$(var control_module_preset)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
       <arg name="lat_controller_param_path" value="$(var sim_lat_controller_param_path)"/>
+      <arg name="lon_controller_param_path" value="$(var sim_lon_controller_param_path)"/>
       <arg name="gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>
       <!-- Declared by autoware.launch.xml, which includes the component upstream -->
       <arg name="vehicle_id" value="$(env VEHICLE_ID default)"/>
