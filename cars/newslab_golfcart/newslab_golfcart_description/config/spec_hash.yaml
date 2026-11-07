@@ -1,3 +1,0 @@
-# Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash fe75c5d5295c767e13092b9863afaba45b9317fe082af87023c1a94e2295ae06) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
-spec_hash: fe75c5d5295c767e13092b9863afaba45b9317fe082af87023c1a94e2295ae06
-name: newslab_golfcart

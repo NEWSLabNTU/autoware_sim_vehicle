@@ -1,7 +1,0 @@
-# No pedal maps for the golf cart (autoware_gen's pedal_maps_problem).
-measured_on: none
-reason: >-
-  The golf cart (NEWSLabNTU/2026-golf-cart, Phase 10) has no CARLA blueprint to measure maps on,
-  and in simulation it runs its own Autoware (golfcart_launch) with its own vehicle packages and
-  command converter: nothing launches the newslab_golfcart_* packages generated here with
-  autoware_sim_profile. Measure maps (on Isaac) before driving it that way.
