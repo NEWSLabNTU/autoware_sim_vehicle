@@ -165,10 +165,21 @@ def pedal_maps_problem(spec, root):
 
     car, _ = names(spec)
     config = Path(root) / f"cars/{car}/{car}_description/config"
+    meta = config / "pedal_maps.yaml"
+    if meta.is_file():
+        recorded = yaml.safe_load(meta.read_text()) or {}
+        if recorded.get("measured_on") == "none":
+            # A car with no CARLA blueprint to measure on, whose packages here no stack drives
+            # (the golf cart runs its own Autoware and its own command converter). Allowed only
+            # without CARLA physics, and only with the reason written down.
+            if spec.section("carla").get("physics"):
+                return f"{meta}: measured_on: none, but the spec gives CARLA physics to measure on"
+            if not str(recorded.get("reason") or "").strip():
+                return f"{meta}: measured_on: none needs a reason"
+            return None
     missing = [m for m in PEDAL_MAPS if not (config / m).is_file()]
     if missing:
         return f"{config}: no {', '.join(missing)} (measure them: acb's build_longitudinal_maps.py)"
-    meta = config / "pedal_maps.yaml"
     if not meta.is_file():
         return f"{meta}: missing (the physics_hash the maps were measured against)"
     recorded = yaml.safe_load(meta.read_text()) or {}

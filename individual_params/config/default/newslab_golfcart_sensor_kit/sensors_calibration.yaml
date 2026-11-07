@@ -1,0 +1,10 @@
+# Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash 14029812c96707a7c4988bc0e5d8b5402453f4aa155629e30cb41eafb18a2c37) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# base_link -> sensor_kit_base_link (the kit's mount).
+base_link:
+  sensor_kit_base_link:
+    x: 0.46
+    y: 0.0
+    z: 1.966
+    roll: -0.016794
+    pitch: 0.031978
+    yaw: 0.0
