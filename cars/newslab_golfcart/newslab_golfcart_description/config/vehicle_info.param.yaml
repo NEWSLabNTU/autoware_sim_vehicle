@@ -1,4 +1,4 @@
-# Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash f84c24a1a99428690c67c726009163032e0e474e4ba73e7ffde48aed0461b417) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash fe75c5d5295c767e13092b9863afaba45b9317fe082af87023c1a94e2295ae06) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
 # Autoware's vehicle_info for newslab_golfcart (autoware_vehicle_info_utils::VehicleInfo).
 # Length 3.288 m, width 1.215 m, height 2.005 m.
 /**:

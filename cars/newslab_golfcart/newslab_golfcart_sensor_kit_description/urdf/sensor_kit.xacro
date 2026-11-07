@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash f84c24a1a99428690c67c726009163032e0e474e4ba73e7ffde48aed0461b417) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate. -->
+<!-- Generated from sim_vehicle_spec/vehicles/newslab_golfcart.yaml (spec_hash fe75c5d5295c767e13092b9863afaba45b9317fe082af87023c1a94e2295ae06) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate. -->
 <robot name="newslab_golfcart_sensor_kit" xmlns:xacro="http://ros.org/wiki/xacro">
   <!-- The sensor kit's links, each placed from sensor_kit_calibration.yaml under
        config_dir (Autoware's vehicle launch passes the description's config). -->
