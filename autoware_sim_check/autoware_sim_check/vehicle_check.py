@@ -170,6 +170,9 @@ class Check(Node):
             send(-1.5, 0.0, 0.0)
             self.spin_for(0.03, sim=False)
         results = []
+        sp = D.speeds_for(D.top_speed(self.spec.doc))
+        if sp != D.ROAD:
+            log.info(f"top speed {D.top_speed(self.spec.doc):.2f} m/s: the run's speeds scaled to {sp}")
         for step in D.plan():
             log.info(f"step {step.name}")
             self.recording = []
@@ -179,7 +182,7 @@ class Check(Node):
             while rclpy.ok():
                 v = self.vel[1] if self.vel else 0.0
                 t = (self.clock or t0) - t0
-                if D.done(step, t, v):
+                if D.done(step, t, v, sp):
                     break
                 if time.monotonic() > wall_end:
                     results.append({"step": step.name, "pass": False,
@@ -187,11 +190,11 @@ class Check(Node):
                                            "simulation time: the simulator stopped"})
                     self.recording = None
                     return results
-                send(*D.command(step, t, v))
+                send(*D.command(step, t, v, sp))
                 self.spin_for(0.03, sim=False)
             samples = [dict(s, t=s["stamp"] - t0) for s in self.recording]
             self.recording = None
-            r = D.judge(step, samples, L)
+            r = D.judge(step, samples, L, sp)
             log.info(json.dumps(r))
             results.append(r)
         t_end = time.monotonic() + 3.0

@@ -50,3 +50,40 @@ def test_commands_hold_the_steering_speed():
     a, v, d = D.command(step, 0.0, 2.0)
     assert a == 2.0 and v == D.STEER_SPEED and d == 0.05
     assert D.done(step, D.STEER_SECONDS, 4.0)
+
+
+# A small car (AutoSDV's 1/10 car A twin, top speed ~2 m/s) runs the same steps below its top
+# speed; a road car keeps the plan's own speeds.
+
+SMALL_EV = {"geometry": {"wheel_radius": 0.052},
+            "powertrain": {"model": "ev", "gear_ratio": 8.0, "motor_max_rpm": 3000.0}}
+
+
+def test_an_ev_spec_has_a_top_speed():
+    assert abs(D.top_speed(SMALL_EV) - 3000.0 / 8.0 * 2 * math.pi * 0.052 / 60.0) < 1e-9
+
+
+def test_a_spec_without_a_motor_limit_has_none():
+    assert D.top_speed({"geometry": {"wheel_radius": 0.3}, "powertrain": {"model": "physx"}}) is None
+
+
+def test_a_road_car_keeps_the_road_speeds():
+    for top in (None, 50.0):
+        sp = D.speeds_for(top)
+        assert (sp.speed, sp.steer_speed, sp.settle, sp.margin) == (D.SPEED, D.STEER_SPEED, D.SETTLE, 0.5)
+
+
+def test_a_small_car_runs_below_its_top_speed():
+    top = D.top_speed(SMALL_EV)
+    sp = D.speeds_for(top)
+    assert sp.speed <= 0.8 * top + 1e-9 and sp.steer_speed < sp.speed
+    assert D.command(D.Step("steer +0.05", "steer", 0.05), 0.0, 0.0, sp)[1] == sp.steer_speed
+    assert D.done(D.Step("accel +1.0", "accel", 1.0), 1.0, sp.speed, sp)
+
+
+def test_a_small_car_that_does_what_it_is_asked_passes():
+    sp = D.speeds_for(D.top_speed(SMALL_EV))
+    for a in D.ACCELS:
+        step = D.Step(f"accel {a:+.1f}", "accel", a)
+        r = D.judge(step, ramp(a, lag=0.05, until=lambda v: v >= sp.speed), 0.319, sp)
+        assert r["pass"], r

@@ -8,6 +8,11 @@ near its lane. Each step is judged on its steady part: the acceleration the car 
 line through its speeds) against the request, within acceptance.py's 0.35 m/s^2; the steering
 angle the car reports against the command; and the yaw rate against what the angle gives on
 the spec's wheel base (v tan(delta) / L), within YAW_SHARE.
+
+A car whose top speed is below the plan's (a 1/10 RC car's ~2 m/s) runs the same steps at
+speeds scaled to it: `speeds_for(top_speed(spec))` scales SPEED, STEER_SPEED, SETTLE and the
+judging window's margin by one factor, so 80 % of its top speed takes the role of SPEED. A
+road car's plan is unchanged.
 """
 import math
 from dataclasses import dataclass
@@ -22,6 +27,35 @@ TRACKING = 0.35               # m/s^2, acceptance.py's longitudinal limit
 STEER_TOLERANCE = 0.02        # rad
 YAW_SHARE = 0.15              # the yaw rate's share it may be off the bicycle model's
 SETTLE = 0.8                  # s at the start of a step that is not judged (the lags)
+
+
+@dataclass(frozen=True)
+class Speeds:
+    speed: float        # the speed accelerations run to and brakings from
+    steer_speed: float  # the steering sweep's
+    settle: float       # s at the start of a step that is not judged
+    margin: float       # m/s cut from both ends of an acceleration's judged speeds
+
+
+ROAD = Speeds(SPEED, STEER_SPEED, SETTLE, 0.5)
+TOP_SHARE = 0.8               # of a slow car's top speed that takes SPEED's role
+
+
+def top_speed(doc):
+    """The spec's top speed in m/s where its powertrain says (an `ev` motor's max rpm through
+    its gear onto the wheel), else None. `doc` is the spec's mapping."""
+    pt = doc.get("powertrain", {})
+    if pt.get("model") != "ev" or not pt.get("motor_max_rpm") or not pt.get("gear_ratio"):
+        return None
+    return pt["motor_max_rpm"] / pt["gear_ratio"] * 2 * math.pi * doc["geometry"]["wheel_radius"] / 60.0
+
+
+def speeds_for(top):
+    """The plan's speeds for a car of top speed `top` (None: unlimited)."""
+    if top is None or TOP_SHARE * top >= SPEED:
+        return ROAD
+    k = TOP_SHARE * top / SPEED
+    return Speeds(SPEED * k, STEER_SPEED * k, SETTLE * k, ROAD.margin * k)
 
 
 @dataclass
@@ -42,20 +76,20 @@ def plan():
     return steps
 
 
-def command(step, t_in_step, speed):
+def command(step, t_in_step, speed, sp=ROAD):
     """(acceleration, target velocity, tire angle) for `step`, `t_in_step` s into it."""
     if step.kind == "accel":
-        return step.request, SPEED + 10.0, 0.0
+        return step.request, sp.speed + 10.0, 0.0
     if step.kind == "brake":
         return step.request, 0.0, 0.0
-    # steer: hold STEER_SPEED with a P controller on the acceleration
-    a = max(-2.0, min(2.0, 1.5 * (STEER_SPEED - speed)))
-    return a, STEER_SPEED, step.request
+    # steer: hold the steering speed with a P controller on the acceleration
+    a = max(-2.0, min(2.0, 1.5 * (sp.steer_speed - speed)))
+    return a, sp.steer_speed, step.request
 
 
-def done(step, t_in_step, speed):
+def done(step, t_in_step, speed, sp=ROAD):
     if step.kind == "accel":
-        return speed >= SPEED or t_in_step > 20.0
+        return speed >= sp.speed or t_in_step > 20.0
     if step.kind == "brake":
         return speed <= 0.2 or t_in_step > 20.0
     return t_in_step >= STEER_SECONDS
@@ -71,13 +105,13 @@ def slope(ts, vs):
     return sum((t - mt) * (v - mv) for t, v in zip(ts, vs)) / den if den > 0 else None
 
 
-def judge(step, samples, wheel_base):
+def judge(step, samples, wheel_base, sp=ROAD):
     """{step, request, measured, error, pass, ...} from a step's samples: dicts with t (s
     into the step), v, steer (the reported tire angle), yaw_rate."""
     out = {"step": step.name, "request": step.request}
     if step.kind in ("accel", "brake"):
-        lo, hi = 0.5, SPEED - 0.5
-        win = [s for s in samples if s["t"] >= SETTLE and lo <= s["v"] <= hi]
+        lo, hi = sp.margin, sp.speed - sp.margin
+        win = [s for s in samples if s["t"] >= sp.settle and lo <= s["v"] <= hi]
         a = slope([s["t"] for s in win], [s["v"] for s in win])
         if a is None:
             return {**out, "pass": False, "why": f"{len(win)} samples in its steady part"}
