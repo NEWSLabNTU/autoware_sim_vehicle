@@ -13,6 +13,7 @@ The report (--out) has every topic's problems and every step's numbers.
 """
 import argparse
 import json
+import os
 import sys
 import time
 
@@ -33,9 +34,16 @@ def stamp_s(t):
     return t.sec + t.nanosec * 1e-9
 
 
-def load_spec(vehicle_model):
-    from ament_index_python.packages import get_package_share_directory
+def load_spec(vehicle_model, spec_path=None):
+    """The car's spec: `spec_path` when given (a car from another repository), else
+    sim_vehicle_spec's vehicles/<vehicle_model>.yaml."""
     from sim_vehicle_spec import spec as specmod
+
+    if spec_path:
+        if not os.path.isfile(spec_path):
+            raise FileNotFoundError(f"vehicle spec {spec_path}: no such file")
+        return specmod.load(spec_path)
+    from ament_index_python.packages import get_package_share_directory
 
     share = get_package_share_directory("sim_vehicle_spec")
     return specmod.load(f"{share}/vehicles/{vehicle_model}.yaml")
@@ -199,12 +207,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("what", nargs="?", default="all", choices=("contract", "dynamics", "all"))
     ap.add_argument("--vehicle-model", default="tesla_model3")
+    ap.add_argument("--spec", default="", help="the vehicle spec's path, for a car whose spec is "
+                    "not in sim_vehicle_spec (default: its vehicles/<vehicle-model>.yaml)")
     ap.add_argument("--simulator", default="any", choices=("carla", "isaac", "any"))
     ap.add_argument("--listen", type=float, default=10.0, help="s of simulation time")
     ap.add_argument("--out", default="")
     args = ap.parse_args(ros_args)
     rclpy.init(args=argv)
-    node = Check(load_spec(args.vehicle_model), args.simulator)
+    node = Check(load_spec(args.vehicle_model, args.spec or None), args.simulator)
     report = {"vehicle_model": args.vehicle_model, "simulator": args.simulator}
     ok = True
     try:

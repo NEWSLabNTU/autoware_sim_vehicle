@@ -5,7 +5,11 @@
      beside it: acb_bridge with a hero in CARLA, or aib's runner in Isaac.
 
        play_launch launch autoware_sim_check vehicle_check.launch.xml simulator:=carla
-           [vehicle_model:=tesla_model3] [what:=all|contract|dynamics] [out:=<report.json>] -->
+           [vehicle_model:=tesla_model3] [what:=all|contract|dynamics] [out:=<report.json>]
+
+     A car from another repository (aib docs/vehicle-from-another-repository.md) names its own
+     spec with spec:=<path>, and its own description with vehicle_model:=, sensor_model:= and
+     config_dir:= (the directory holding its sensors_calibration.yaml). -->
 <launch>
   <arg name="vehicle_model" default="tesla_model3"/>
   <arg name="sensor_model" default="$(var vehicle_model)_sensor_kit"/>
@@ -13,6 +17,8 @@
   <arg name="what" default="all" description="contract | dynamics | all"/>
   <arg name="listen" default="10.0" description="s of simulation time the contract listens"/>
   <arg name="out" default="/tmp/vehicle_check.json"/>
+  <arg name="spec" default="" description="the vehicle spec's path; empty: sim_vehicle_spec's vehicles/$(var vehicle_model).yaml"/>
+  <arg name="config_dir" default="$(find-pkg-share $(var sensor_model)_description)/config" description="the sensor kit's calibration directory, as tier4_vehicle_launch takes it"/>
 
   <set_parameter name="use_sim_time" value="true"/>
   <include file="$(find-pkg-share tier4_vehicle_launch)/launch/vehicle.launch.xml">
@@ -20,8 +26,9 @@
     <arg name="launch_vehicle_interface" value="false"/>
     <arg name="vehicle_model" value="$(var vehicle_model)"/>
     <arg name="sensor_model" value="$(var sensor_model)"/>
+    <arg name="config_dir" value="$(var config_dir)"/>
   </include>
   <!-- Required: the launch ends with the check, whatever its verdict (the report says). -->
   <node pkg="autoware_sim_check" exec="vehicle_check" name="vehicle_check" output="screen"
-        on_exit="shutdown" args="$(var what) --vehicle-model $(var vehicle_model) --simulator $(var simulator) --listen $(var listen) --out $(var out)"/>
+        on_exit="shutdown" args="$(var what) --vehicle-model $(var vehicle_model) --spec=$(var spec) --simulator $(var simulator) --listen $(var listen) --out $(var out)"/>
 </launch>
