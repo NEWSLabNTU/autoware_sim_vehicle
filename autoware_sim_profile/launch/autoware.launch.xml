@@ -169,6 +169,10 @@
        upstream's, and every suite runs at it. 11.11 (40 km/h) for carla-scenario-bridge's
        demo tour (roadmap 033). Another value loads upstream's file with only max_vel
        changed, written by autoware_sim_profile's planning_common_param. Needs sim_planning. -->
+  <arg name="obstacle_cruise_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml"
+       description="the motion velocity planner's obstacle_cruise parameter file (idling time, RSS braking, safe distance margin); upstream's by default; set per stack to run another cruise strategy (carla-scenario-bridge roadmap 074 E3)"/>
+  <arg name="obstacle_stop_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml"
+       description="the motion velocity planner's obstacle_stop parameter file (stop margin); upstream's by default (roadmap 074 E3)"/>
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
   <arg name="vehicle_cmd_gate_param_path" default="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
        description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
@@ -395,6 +399,8 @@
            value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/planning_common_param $(var planning_common_param_base) $(var max_velocity)')"/>
       <arg name="planning_velocity_smoother_param_path" value="$(var velocity_smoother_param_path)"/>
       <arg name="planning_drivable_area_expansion_param_path" value="$(var drivable_area_expansion_param_path)"/>
+      <arg name="obstacle_cruise_param_path" value="$(var obstacle_cruise_param_path)"/>
+      <arg name="obstacle_stop_param_path" value="$(var obstacle_stop_param_path)"/>
     </include>
     <node pkg="topic_tools" exec="relay" name="trajectory_relay">
       <param name="input_topic" value="/planning/trajectory"/>

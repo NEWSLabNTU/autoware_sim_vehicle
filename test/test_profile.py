@@ -129,6 +129,25 @@ def test_profile_launches_planning_with_max_velocity():
     assert "<arg name=\"common_param_path\" value=\"$(var planning_common_param_path)\"/>" in component
 
 
+MVP = "config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/"
+
+
+@pytest.mark.parametrize("name,file", [("obstacle_cruise_param_path", "obstacle_cruise.param.yaml"),
+                                       ("obstacle_stop_param_path", "obstacle_stop.param.yaml")])
+def test_obstacle_param_files_default_to_upstreams_and_reach_the_planner(name, file):
+    """Carla-scenario-bridge roadmap 074 E3: the cruise and stop parameter files are arguments
+    (a knob setting is chosen per stack start), upstream's by default, passed through the
+    planning component to the motion velocity planner's module."""
+    default = f"$(find-pkg-share autoware_launch)/{MVP}{file}"
+    assert arg_default(read(LAUNCH), name) == default
+    assert f'<arg name="{name}" value="$(var {name})"/>' in read(LAUNCH)
+    component = read("launch/components/tier4_planning_component.launch.xml")
+    assert f'<arg name="{name}" default="{default}"' in component
+    module = file.split(".")[0]
+    assert f'<arg name="motion_velocity_planner_{module}_module_param_path" value="$(var {name})"/>' in component
+    upstream(MVP + file)
+
+
 def planning_common_param(upstream_file, max_velocity, cache):
     out = subprocess.run([sys.executable, str(PROFILE / "scripts/planning_common_param"),
                           str(upstream_file), max_velocity],

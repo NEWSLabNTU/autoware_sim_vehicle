@@ -6,6 +6,8 @@
   <arg name="planning_common_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml" description="planning common parameter file (max_vel and the acceleration and jerk limits)"/>
   <arg name="planning_velocity_smoother_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml" description="the velocity smoother's parameter file (the lateral acceleration limits that set the speed in a bend)"/>
   <arg name="planning_drivable_area_expansion_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/drivable_area_expansion.param.yaml" description="behavior_path_planner's drivable-area expansion (the ego footprint margins it widens tight turns by)"/>
+  <arg name="obstacle_cruise_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml" description="the motion velocity planner's obstacle_cruise parameter file; upstream's under motion_config_path by default"/>
+  <arg name="obstacle_stop_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml" description="the motion velocity planner's obstacle_stop parameter file; upstream's under motion_config_path by default"/>
   <!-- NOTE: optional parameters are written here -->
   <arg name="module_preset" default="default"/>
   <arg name="enable_all_modules_auto_mode" default="false"/>
@@ -103,9 +105,9 @@
     <arg name="path_sampler_param_path" value="$(var motion_config_path)/path_sampler/path_sampler.param.yaml"/>
     <arg name="surround_obstacle_checker_param_path" value="$(var motion_config_path)/surround_obstacle_checker/surround_obstacle_checker.param.yaml"/>
     <arg name="motion_velocity_planner_param_path" value="$(var motion_config_path)/motion_velocity_planner/motion_velocity_planner.param.yaml"/>
-    <arg name="motion_velocity_planner_obstacle_stop_module_param_path" value="$(var motion_config_path)/motion_velocity_planner/obstacle_stop.param.yaml"/>
+    <arg name="motion_velocity_planner_obstacle_stop_module_param_path" value="$(var obstacle_stop_param_path)"/>
     <arg name="motion_velocity_planner_obstacle_slow_down_module_param_path" value="$(var motion_config_path)/motion_velocity_planner/obstacle_slow_down.param.yaml"/>
-    <arg name="motion_velocity_planner_obstacle_cruise_module_param_path" value="$(var motion_config_path)/motion_velocity_planner/obstacle_cruise.param.yaml"/>
+    <arg name="motion_velocity_planner_obstacle_cruise_module_param_path" value="$(var obstacle_cruise_param_path)"/>
     <arg name="motion_velocity_planner_dynamic_obstacle_stop_module_param_path" value="$(var motion_config_path)/motion_velocity_planner/dynamic_obstacle_stop.param.yaml"/>
     <arg name="motion_velocity_planner_out_of_lane_module_param_path" value="$(var motion_config_path)/motion_velocity_planner/out_of_lane.param.yaml"/>
     <arg name="motion_velocity_planner_obstacle_velocity_limiter_param_path" value="$(var motion_config_path)/motion_velocity_planner/obstacle_velocity_limiter.param.yaml"/>
