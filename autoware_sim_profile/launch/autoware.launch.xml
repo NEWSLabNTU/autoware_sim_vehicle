@@ -144,7 +144,11 @@
   <arg name="use_multi_channel_tracker_merger" default="true"
        description="true: multi-channel tracker (DNN + detection_by_tracker); false: the lidar
                     merger (DNN + clustering + detection_by_tracker) into one channel"/>
-  <arg name="occupancy_grid_map_method" default="pointcloud_based"
+  <!-- 2.0.0's image (ghcr.io/autowarefoundation/autoware:universe-humble-2.0.0) ships only the
+       laserscan-based grid's plugin; the pointcloud-based one fails to load there -->
+  <let name="occupancy_grid_map_method_default" value="pointcloud_based" if="$(var aw15)"/>
+  <let name="occupancy_grid_map_method_default" value="laserscan_based" if="$(var aw20)"/>
+  <arg name="occupancy_grid_map_method" default="$(var occupancy_grid_map_method_default)"
        description="'laserscan_based' avoids the CUDA occupancy grid node"/>
   <!-- Objects from the simulator's ground truth instead of object recognition: the vehicle
        bridge publishes them (acb_bridge's publish_ground_truth_objects), and this turns

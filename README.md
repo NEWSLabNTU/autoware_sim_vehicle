@@ -107,8 +107,11 @@ A `sim_*` switch set to `false` hands that component back to `autoware_launch`, 
 `tier4_*_launch` packages `autoware_*_launch`, moved the parameter trees out of
 `autoware_launch` into `autoware_<component>_config`, and passes every parameter file down as a
 launch argument. So the 2.0.0 profile includes upstream's own components and hands them its
-files; the one copy is `components/2.0.0/component_perception.launch.xml` (object recognition
-under `object_recognition`, issue 026). The profile's parameter changes are carried onto 2.0.0's
+files. Two copies remain: `components/2.0.0/component_perception.launch.xml` (object
+recognition under `object_recognition`, issue 026) and `object_recognition_lidar.launch.xml`, which
+fixes 2.0.0's `lidar_detection_model:=clustering` (the profile's default): upstream wires the
+clustering output as the DNN channel too, and `multi_object_tracker` aborts on the channel's
+parameters declared twice. The profile's parameter changes are carried onto 2.0.0's
 files by `scripts/port_config.py` into `config/2.0.0/`: each leaf the profile changed from 1.5.0,
 set by key in 2.0.0's file (2.0.0's own new keys and comments stay), the lane variants and the
 `ndt:=none` graph derived the same way. It stops on what it cannot carry over, and
@@ -125,6 +128,8 @@ scripts/sync_release_2.0.0.sh /opt/autoware [--check]
 Not on 2.0.0 (`check_launch_args` refuses them): `ndt:=cuda` (built against 1.5.0) and
 `use_multi_channel_tracker_merger:=false` (2.0.0's tracker has no such switch). With
 `traffic_light_fusion_only:=false`, 2.0.0's camera pipeline reads `/sensing/camera/traffic_light`.
+`occupancy_grid_map_method` defaults to `laserscan_based` on 2.0.0: the 2.0.0 image ships only that
+grid's plugin (`PointcloudBasedOccupancyGridMapNode` is not found there).
 play_launch 0.35.0's Rust parser cannot evaluate 2.0.0's `agnocast_env.launch.py`
 (`EnvironmentVariable` has no `perform`): resolve and launch a 2.0.0 stack with
 `--parser python` until it does.
