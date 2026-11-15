@@ -69,7 +69,7 @@
       <arg name="pointcloud_container_name" value="pointcloud_container"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
-      <arg name="lidar_detection_model" value="$(var lidar_detection_model)"/>
+      <arg name="lidar_detection_model" value="$(var lidar_detector)"/>
       <arg name="occupancy_grid_map_method" value="$(var occupancy_grid_map_method)"/>
     </include>
     <group if="$(var traffic_light_fusion_only)">

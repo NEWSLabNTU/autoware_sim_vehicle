@@ -89,7 +89,7 @@ Required: `map_path`, `vehicle_model`, `sensor_model`. The arguments a simulatio
 | `sim_planning` | `true` | planning with a selectable `max_velocity` |
 | `sim_clock_guard` | `true` | start `clock_guard` (below) |
 | `max_velocity` | `4.17` | Autoware's `max_vel`, m/s (upstream's); needs `sim_planning` |
-| `lidar_detection_model` | `clustering` | or `centerpoint` (TensorRT) |
+| `lidar_detection_model` | `clustering` | or `centerpoint` (TensorRT): full CenterPoint, `centerpoint/centerpoint` (upstream's `centerpoint` is `centerpoint_tiny`, still `centerpoint/centerpoint_tiny`); a one-time engine build of ~33 s, ~2 GB VRAM at peak |
 | `traffic_light_fusion_only` | `true` | signals from the vehicle bridge (V2X), no camera recognition |
 | `use_multi_channel_tracker_merger`, `occupancy_grid_map_method`, `perception`, `publish_ground_truth_objects` | | perception choices; see the launch file |
 | `extra_launch` | empty | a launch file of your own to include beside the stack, in its domain (scenario-world-bridge's vehicle agent is one); it receives `map_path` and `use_sim_time` |

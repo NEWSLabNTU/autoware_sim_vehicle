@@ -215,6 +215,22 @@ def test_tracker_merger_choice_reaches_perception_with_upstream_default():
             "value=\"$(var use_multi_channel_tracker_merger)\"/>") in component
 
 
+def test_centerpoint_is_full_centerpoint_in_both_releases():
+    """`lidar_detection_model:=centerpoint` runs full CenterPoint (roadmap 074 S5: contacts 1 of 8
+    against centerpoint_tiny's 5), not upstream's default model, tiny; clustering stays the
+    default and every type/name passes as given."""
+    launch = read(LAUNCH)
+    assert "<arg name=\"lidar_detection_model\" default=\"clustering\"" in launch
+    resolve = ("'centerpoint/centerpoint' if '$(var lidar_detection_model)' == 'centerpoint' "
+               "else '$(var lidar_detection_model)'")
+    assert resolve in launch.replace("&quot;", "")
+    assert "<arg name=\"lidar_detection_model\" value=\"$(var lidar_detector)\"/>" in launch
+    v2 = read("launch/autoware-2.0.0.launch.xml")
+    assert "<arg name=\"lidar_detection_model\" value=\"$(var lidar_detector)\"/>" in v2
+    for text in (launch, v2):
+        assert "value=\"$(var lidar_detection_model)\"" not in text
+
+
 def test_the_profile_starts_no_vehicle_interface_and_no_agent():
     """Roadmap 051: the vehicle bridge starts its interface; the agent comes by extra_launch."""
     launch = read(LAUNCH)

@@ -125,8 +125,17 @@
        clustering 9/9. basic/ and UC-ACC pass with either. It also needs no GPU beside
        CARLA's. centerpoint (TensorRT) remains a choice. -->
   <arg name="lidar_detection_model" default="clustering"
-       description="lidar object detection model: clustering (CPU, rule-based; default) or
-                    centerpoint (TensorRT)"/>
+       description="lidar object detection model: clustering (CPU, rule-based; default),
+                    centerpoint (TensorRT: full CenterPoint, centerpoint/centerpoint) or
+                    another type/name, centerpoint/centerpoint_tiny, transfusion, ..."/>
+  <!-- centerpoint alone is full CenterPoint here, not upstream's centerpoint_tiny. Measured
+       2026-11-15 on the S5 unprotected left turn (roadmap 074, 8 runs at lags 5.5-7 s):
+       contacts 1 of 8 against tiny's 5, the tracker's reach on the oncoming car ~56 m against
+       ~44, every yield clean; at a one-time engine build of ~33 s (TensorRT 10.8, two
+       engines) and ~600 MiB more VRAM at peak (2.05 GB against 1.46), the same 20 Hz.
+       centerpoint/centerpoint_tiny keeps tiny. -->
+  <let name="lidar_detector"
+       value="$(eval &quot;'centerpoint/centerpoint' if '$(var lidar_detection_model)' == 'centerpoint' else '$(var lidar_detection_model)'&quot;)"/>
   <!-- Issue 028. true (Autoware 1.5's default): the multi-channel tracker takes the DNN's
        objects and detection_by_tracker only, so with centerpoint an object CenterPoint has
        not classified (clustering's UNKNOWN) never reaches planning. false: Autoware's lidar
@@ -358,7 +367,7 @@
       <arg name="pointcloud_container_name" value="pointcloud_container"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
-      <arg name="lidar_detection_model" value="$(var lidar_detection_model)"/>
+      <arg name="lidar_detection_model" value="$(var lidar_detector)"/>
       <arg name="occupancy_grid_map_method" value="$(var occupancy_grid_map_method)"/>
       <arg name="use_multi_channel_tracker_merger" value="$(var use_multi_channel_tracker_merger)"/>
       <!-- The component reads $(var perception_mode) without declaring it; when
