@@ -3,7 +3,7 @@
 <package format="3">
   <name>autoware_sim_profile</name>
   <version>0.1.0</version>
-  <description>The Autoware profile for a simulated car: Autoware 1.5 tuned for simulation, no vehicle interface (roadmap 051)</description>
+  <description>The Autoware profile for a simulated car: Autoware 1.5.0 or 2.0.0 tuned for simulation, no vehicle interface (roadmap 051)</description>
   <maintainer email="user@example.com">User</maintainer>
   <license>Apache-2.0</license>
 
@@ -13,7 +13,11 @@
   <!-- clock_guard -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
-  <exec_depend>tier4_localization_launch</exec_depend>
+  <!-- the planning trajectory relay -->
+  <exec_depend>topic_tools</exec_depend>
+  <!-- No release's own launch packages (tier4_*_launch on 1.5.0, autoware_*_launch on 2.0.0):
+       autoware_launch, in both, brings them, and a key only one release has fails rosdep on
+       the other (tier4_localization_launch on 2.0.0). -->
 
   <export>
     <build_type>ament_cmake</build_type>

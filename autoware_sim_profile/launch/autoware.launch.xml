@@ -24,6 +24,22 @@
        default="$(find-pkg-share autoware_launch)/launch/autoware.launch.xml"
        description="Path to user's autoware.launch.xml"/>
 
+  <!-- The Autoware release the stack runs on (carla-scenario-bridge roadmap 077, the autopilot axis):
+       1.5.0 (/opt/autoware/1.5.0, this file's own components and parameter files) or 2.0.0
+       (autoware-2.0.0.launch.xml: upstream 2.0.0's components, the profile's 2.0.0 parameter files
+       under config/2.0.0/, ported by scripts/port_config.py). The arguments below are the same for
+       both; their defaults follow the release. check_launch_args refuses any other. -->
+  <arg name="autoware_release" default="1.5.0" description="Autoware release: 1.5.0 or 2.0.0"/>
+  <let name="aw15" value="$(eval &quot;'$(var autoware_release)' == '1.5.0'&quot;)"/>
+  <let name="aw20" value="$(eval &quot;'$(var autoware_release)' == '2.0.0'&quot;)"/>
+  <!-- the profile's parameter files and upstream's control and planning parameter trees, per release -->
+  <let name="sim_config_dir" value="$(find-pkg-share autoware_sim_profile)/config" if="$(var aw15)"/>
+  <let name="sim_config_dir" value="$(find-pkg-share autoware_sim_profile)/config/2.0.0" if="$(var aw20)"/>
+  <let name="up_control_config_dir" value="$(find-pkg-share autoware_launch)/config/control" if="$(var aw15)"/>
+  <let name="up_control_config_dir" value="$(find-pkg-share autoware_control_config)/config" if="$(var aw20)"/>
+  <let name="up_planning_config_dir" value="$(find-pkg-share autoware_launch)/config/planning" if="$(var aw15)"/>
+  <let name="up_planning_config_dir" value="$(find-pkg-share autoware_planning_config)/config" if="$(var aw20)"/>
+
   <!-- Essential parameters -->
   <arg name="use_sim_time" default="true" description="use simulation time"/>
 
@@ -154,12 +170,12 @@
        and transients, never forgets across episodes, so a long-lived stack steered
        differently from a fresh one. Everything else is upstream's control component. -->
   <arg name="sim_control" default="true" description="simulation MPC params (no steering offset learning)"/>
-  <arg name="sim_lat_controller_param_path" default="$(find-pkg-share autoware_sim_profile)/config/control/trajectory_follower/lateral/mpc.param.yaml"/>
+  <arg name="sim_lat_controller_param_path" default="$(var sim_config_dir)/control/trajectory_follower/lateral/mpc.param.yaml"/>
   <!-- The longitudinal PID's slope compensation reaches +/-0.2 rad of pitch (upstream +/-0.1): the
        NTU car-park ramp is 10.9 deg, whose 1.85 m/s^2 of gravity the 0.1 cap compensated only to
        0.98, so the car rolled back at engage and stalled at rest on the downhill (swb roadmap 072).
        Every scenario under sim_control. -->
-  <arg name="sim_lon_controller_param_path" default="$(find-pkg-share autoware_sim_profile)/config/control/trajectory_follower/longitudinal/pid.param.yaml"/>
+  <arg name="sim_lon_controller_param_path" default="$(var sim_config_dir)/control/trajectory_follower/longitudinal/pid.param.yaml"/>
   <!-- Planning from this profile's copy of upstream's component, which takes the common parameter
        file as an argument so max_velocity can reach it; at the default that file is
        upstream's own and the stack is upstream's. -->
@@ -169,27 +185,27 @@
        upstream's, and every suite runs at it. 11.11 (40 km/h) for carla-scenario-bridge's
        demo tour (roadmap 033). Another value loads upstream's file with only max_vel
        changed, written by autoware_sim_profile's planning_common_param. Needs sim_planning. -->
-  <arg name="obstacle_cruise_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml"
+  <arg name="obstacle_cruise_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml"
        description="the motion velocity planner's obstacle_cruise parameter file (idling time, RSS braking, safe distance margin); upstream's by default; set per stack to run another cruise strategy (carla-scenario-bridge roadmap 074 E3)"/>
-  <arg name="obstacle_stop_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml"
+  <arg name="obstacle_stop_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml"
        description="the motion velocity planner's obstacle_stop parameter file (stop margin); upstream's by default (roadmap 074 E3)"/>
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
-  <arg name="vehicle_cmd_gate_param_path" default="$(find-pkg-share autoware_launch)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
+  <arg name="vehicle_cmd_gate_param_path" default="$(var up_control_config_dir)/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
        description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
-  <arg name="planning_common_param_base" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml"
+  <arg name="planning_common_param_base" default="$(var up_planning_config_dir)/scenario_planning/common/common.param.yaml"
        description="the planning common parameter file max_velocity is applied onto (its acceleration and jerk limits); upstream's by default"/>
   <!-- With ndt:=none the default is the same graph without NDT's scan_matching_status, which
        nothing publishes then (a stale unit would keep autonomous mode unavailable). A graph of
        your own has to leave it out too; check_launch_args refuses one that names it. -->
   <arg name="diagnostic_graph_path"
-       default="$(eval &quot;'$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim-ndt-none.yaml' if '$(var ndt)' == 'none' else '$(find-pkg-share autoware_sim_profile)/config/system/diagnostics/autoware-sim.yaml'&quot;)"
+       default="$(eval &quot;'$(var sim_config_dir)/system/diagnostics/autoware-sim-ndt-none.yaml' if '$(var ndt)' == 'none' else '$(var sim_config_dir)/system/diagnostics/autoware-sim.yaml'&quot;)"
        description="the diagnostic graph the operation modes are judged by; the profile's by default (without NDT's status under ndt:=none)"/>
   <!-- behavior_path_planner's drivable-area expansion: the profile's copy widens the ego footprint it
        expands tight turns by (extra_width, extra_front_overhang 0.15 m; swb roadmap 072, the tour:
        path_optimizer stopped at "outside drivable area" in 83-84 deg connectors). Every scenario. -->
-  <arg name="drivable_area_expansion_param_path" default="$(find-pkg-share autoware_sim_profile)/config/planning/behavior_path_planner/drivable_area_expansion.param.yaml"
+  <arg name="drivable_area_expansion_param_path" default="$(var sim_config_dir)/planning/behavior_path_planner/drivable_area_expansion.param.yaml"
        description="behavior_path_planner's drivable_area_expansion.param.yaml (the profile's: wider ego margins in tight turns)"/>
-  <arg name="velocity_smoother_param_path" default="$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml"
+  <arg name="velocity_smoother_param_path" default="$(var up_planning_config_dir)/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml"
        description="the velocity smoother's parameter file; upstream's (a 1.0 m/s^2 lateral limit in bends) by default"/>
   <!-- Autoware's deprecated (tier4) API, which autoware_launch turns on only for
        scenario_simulation. The vehicle agent needs /api/autoware/set/velocity_limit from it
@@ -208,7 +224,7 @@
   <arg name="rviz_config" default="$(find-pkg-share autoware_launch)/rviz/$(var rviz_config_name)" description="rviz config path"/>
 
   <!-- CARLA-optimized localization config path -->
-  <arg name="sim_loc_config_path" default="$(find-pkg-share autoware_sim_profile)/config/localization"/>
+  <arg name="sim_loc_config_path" default="$(var sim_config_dir)/localization"/>
   <!-- The localization error monitor's and the EKF's parameter files: their covariance-ellipse
        thresholds decide when localization counts as lost (a WARN already takes autonomous mode
        away: the diagnostic graph wants OK). The defaults are the profile's relaxed NDT ones;
@@ -221,10 +237,13 @@
   <arg name="ekf_localizer_param_path" default="$(var sim_loc_config_path)/ekf_localizer.param.yaml"
        description="EKF localizer parameter file"/>
   <!-- CARLA-optimized system topics config - excludes traffic light topic monitoring -->
-  <arg name="sim_system_topics_path" default="$(find-pkg-share autoware_sim_profile)/config/system/component_state_monitor/topics.yaml"/>
+  <arg name="sim_system_topics_path" default="$(var sim_config_dir)/system/component_state_monitor/topics.yaml"/>
   <!-- CARLA-optimized MRM handler config - relaxed timeouts for simulation -->
-  <arg name="sim_mrm_handler_path" default="$(find-pkg-share autoware_sim_profile)/config/system/mrm_handler/mrm_handler.param.yaml"/>
+  <arg name="sim_mrm_handler_path" default="$(var sim_config_dir)/system/mrm_handler/mrm_handler.param.yaml"/>
 
+
+  <!-- ===== Autoware 1.5.0: this file's components (the rest of this group is the profile as it was) ===== -->
+  <group if="$(var aw15)" scoped="false">
 
   <!-- Pre-set CARLA planning args before autoware.launch.xml includes the
        default_preset.yaml. YAML includes modify the parent context, and child
@@ -467,6 +486,12 @@
       <!-- Use our CARLA-specific diagnostic graph with corrected node names for Autoware 1.5.0 -->
       <arg name="diagnostic_graph_aggregator_graph_path" value="$(var diagnostic_graph_path)"/>
     </include>
+  </group>
+  </group>
+
+  <!-- ===== Autoware 2.0.0: upstream's components with the profile's parameter files ===== -->
+  <group if="$(var aw20)" scoped="false">
+    <include file="$(find-pkg-share autoware_sim_profile)/launch/autoware-2.0.0.launch.xml"/>
   </group>
 
   <node pkg="autoware_sim_profile" exec="clock_guard" name="clock_guard" output="screen"

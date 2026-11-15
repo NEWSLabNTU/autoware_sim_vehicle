@@ -20,8 +20,21 @@ TRACKER = ("config/perception/object_recognition/tracking/multi_object_tracker/"
 COMMON = "config/planning/scenario_planning/common/common.param.yaml"
 
 
+# autoware.launch.xml's per-release directories (autoware_release, roadmap 077), at 1.5.0: the
+# checks below read the file as the 1.5.0 stack resolves it
+RELEASE_15 = {
+    "$(var sim_config_dir)": "$(find-pkg-share autoware_sim_profile)/config",
+    "$(var up_control_config_dir)": "$(find-pkg-share autoware_launch)/config/control",
+    "$(var up_planning_config_dir)": "$(find-pkg-share autoware_launch)/config/planning",
+}
+
+
 def read(rel):
-    return (PROFILE / rel).read_text()
+    text = (PROFILE / rel).read_text()
+    if rel == LAUNCH:
+        for var, value in RELEASE_15.items():
+            text = text.replace(var, value)
+    return text
 
 
 def params(doc):
@@ -262,7 +275,7 @@ def test_retired_launch_arguments_are_refused_by_name():
 
 def test_every_renamed_argument_exists_in_the_profile():
     m = _check_launch_args()
-    launch = (PROFILE / "launch" / "autoware.launch.xml").read_text()
+    launch = read(LAUNCH)
     for new in m.RENAMED.values():
         assert f'<arg name="{new}"' in launch, new
 
@@ -384,3 +397,26 @@ def test_pairs_that_would_launch_without_their_part_are_refused(tmp_path):
     assert m.problems(["ndt:=autoware", f"diagnostic_graph_path:={ndt_graph}"]) == []
     ours = PROFILE / "config/system/diagnostics/autoware-sim-ndt-none.yaml"
     assert m.problems(["ndt:=none", f"diagnostic_graph_path:={ours}"]) == []
+
+
+def test_release_dirs_name_both_releases():
+    """autoware_release (roadmap 077): every per-release directory is set for 1.5.0 and for 2.0.0,
+    and 1.5.0's are what the profile named before the release argument."""
+    launch = (PROFILE / LAUNCH).read_text()
+    for var, value in RELEASE_15.items():
+        name = var[len("$(var "):-1]
+        assert f'<let name="{name}" value="{value}" if="$(var aw15)"/>' in launch
+        assert f'<let name="{name}" value="' in launch.split(f'if="$(var aw15)"/>', 1)[1]
+        assert launch.count(f'<let name="{name}" ') == 2
+
+
+def test_release_2_0_0_has_every_ported_file():
+    """Every file the 2.0.0 profile names under config/2.0.0 exists (scripts/port_config.py)."""
+    import re
+    text = (PROFILE / LAUNCH).read_text() + (PROFILE / "launch/autoware-2.0.0.launch.xml").read_text()
+    root = PROFILE / "config/2.0.0"
+    names = set(re.findall(r"\$\(var sim_config_dir\)/([A-Za-z0-9_./-]+\.ya?ml)", text))
+    names |= {"localization/" + n for n in re.findall(r"\$\(var sim_loc_config_path\)/([A-Za-z0-9_./-]+\.ya?ml)", text)}
+    assert names
+    missing = sorted(n for n in names if not (root / n).is_file())
+    assert not missing, missing

@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The Autoware profile on Autoware 2.0.0 (carla-scenario-bridge roadmap 077, the autopilot axis):
+     what autoware.launch.xml does on 1.5.0, on 2.0.0's launch packages. autoware.launch.xml
+     includes this file with autoware_release:=2.0.0 and declares every argument it reads (the
+     include passes none; they reach here as launch configurations), so the two releases take the
+     same arguments.
+
+     2.0.0 renamed the tier4_*_launch packages autoware_*_launch, moved the parameter trees out
+     of autoware_launch into autoware_<component>_config, and passes every parameter file as a
+     launch argument down to the launch file that uses it. So, unlike 1.5.0, nothing here is a
+     copy of an upstream component but one (components/2.0.0/component_perception.launch.xml,
+     object recognition under object_recognition; scripts/sync_release_2.0.0.sh): each component
+     is upstream's, and the profile's parameter files reach it as arguments, or as launch
+     configurations (<let>) named as the argument of the nested launch file that declares it.
+     The profile's 2.0.0 parameter files are config/2.0.0/, its 1.5.0 changes carried onto 2.0.0's
+     files by scripts/port_config.py.
+
+     Not on 2.0.0: ndt:=cuda (cuda_ndt_matcher is built against 1.5.0) and
+     use_multi_channel_tracker_merger:=false (2.0.0's tracker has no such switch); check_launch_args
+     refuses both. Camera-based traffic light recognition (traffic_light_fusion_only:=false) runs
+     upstream's 2.0.0 component, whose camera is /sensing/camera/traffic_light.
+-->
+<launch>
+  <!-- planning modules the CARLA maps cannot run (static obstacle avoidance), before upstream's preset -->
+  <include file="$(var sim_config_dir)/planning/preset/sim_preset.yaml"/>
+
+  <group scoped="false">
+    <include file="$(var autoware_launch)">
+      <arg name="map_path" value="$(var map_path)"/>
+      <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      <arg name="sensor_model" value="$(var sensor_model)"/>
+      <arg name="data_path" value="$(var data_path)"/>
+      <arg name="planning_module_preset" value="$(var planning_module_preset)"/>
+      <arg name="control_module_preset" value="$(var control_module_preset)"/>
+      <arg name="launch_vehicle" value="$(var vehicle)"/>
+      <arg name="launch_system" value="$(eval &quot;'$(var system)' == 'true' and '$(var sim_system)' != 'true'&quot;)"/>
+      <arg name="launch_map" value="$(var map)"/>
+      <arg name="launch_sensing" value="$(var sensing)"/>
+      <arg name="launch_localization" value="$(eval &quot;'$(var localization)' == 'true' and '$(var sim_localization)' != 'true'&quot;)"/>
+      <arg name="launch_perception" value="$(eval &quot;'$(var perception)' == 'true' and '$(var sim_perception)' != 'true'&quot;)"/>
+      <arg name="launch_planning" value="$(eval &quot;'$(var planning)' == 'true' and '$(var sim_planning)' != 'true'&quot;)"/>
+      <arg name="launch_control" value="$(eval &quot;'$(var control)' == 'true' and '$(var sim_control)' != 'true'&quot;)"/>
+      <arg name="use_sim_time" value="$(var use_sim_time)"/>
+      <arg name="system_run_mode" value="logging_simulation"/>
+      <arg name="launch_vehicle_interface" value="false"/>
+      <arg name="lanelet2_map_file" value="$(var lanelet2_map_file)"/>
+      <arg name="pointcloud_map_file" value="$(var pointcloud_map_file)"/>
+      <arg name="launch_system_monitor" value="$(var launch_system_monitor)"/>
+      <arg name="launch_dummy_diag_publisher" value="$(var launch_dummy_diag_publisher)"/>
+      <arg name="launch_sensing_driver" value="$(var launch_sensing_driver)"/>
+      <arg name="traffic_light_recognition/use_high_accuracy_detection" value="false"/>
+      <arg name="launch_deprecated_api" value="$(var launch_deprecated_api)"/>
+      <arg name="rviz" value="$(var rviz)"/>
+      <arg name="rviz_config" value="$(var rviz_config)"/>
+    </include>
+  </group>
+
+  <!-- Perception: obstacle segmentation, the occupancy grid and (object_recognition) detection,
+       tracking and prediction; traffic lights from the vehicle bridge's V2X (fusion only) or
+       upstream's camera pipeline. -->
+  <group if="$(eval &quot;'$(var sim_perception)' == 'true'&quot;)">
+    <!-- the compare-map filter on a static map (acb issue 029): voxel_based_compare_map_filter's
+         parameter file, an argument of pointcloud_map_filter.launch.xml -->
+    <let name="voxel_based_compare_map_filter_node_param_path"
+         value="$(var sim_config_dir)/perception/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml"/>
+    <include file="$(find-pkg-share autoware_sim_profile)/launch/components/2.0.0/component_perception.launch.xml">
+      <arg name="object_recognition" value="$(eval &quot;'$(var perception)' == 'true' and '$(var publish_ground_truth_objects)' != 'true'&quot;)"/>
+      <arg name="data_path" value="$(var data_path)"/>
+      <arg name="pointcloud_container_name" value="pointcloud_container"/>
+      <arg name="use_sim_time" value="$(var use_sim_time)"/>
+      <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      <arg name="lidar_detection_model" value="$(var lidar_detection_model)"/>
+      <arg name="occupancy_grid_map_method" value="$(var occupancy_grid_map_method)"/>
+    </include>
+    <group if="$(var traffic_light_fusion_only)">
+      <push-ros-namespace namespace="perception"/>
+      <push-ros-namespace namespace="traffic_light_recognition"/>
+      <include file="$(find-pkg-share autoware_perception_launch)/launch/traffic_light_recognition/traffic_light_fusion.launch.xml">
+        <arg name="camera_namespaces" value="$(var traffic_light_camera_namespaces)"/>
+      </include>
+    </group>
+    <group unless="$(var traffic_light_fusion_only)">
+      <include file="$(find-pkg-share autoware_launch)/launch/components/component_traffic_light.launch.xml">
+        <arg name="data_path" value="$(var data_path)"/>
+        <arg name="traffic_light_recognition/use_high_accuracy_detection" value="false"/>
+      </include>
+    </group>
+  </group>
+
+  <!-- Control: upstream's, with the profile's MPC (no steering offset learning), PID (steeper
+       slopes), command gate and control validator (a latency a stepped /clock meets) -->
+  <group if="$(eval &quot;'$(var control)' == 'true' and '$(var sim_control)' == 'true'&quot;)">
+    <group scoped="false">
+      <include file="$(find-pkg-share autoware_global_parameter_loader)/launch/global_params.launch.py">
+        <arg name="use_sim_time" value="$(var use_sim_time)"/>
+        <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      </include>
+    </group>
+    <include file="$(find-pkg-share autoware_control_launch)/launch/control.launch.xml">
+      <arg name="module_preset" value="$(var control_module_preset)"/>
+      <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      <arg name="lat_controller_param_path" value="$(var sim_lat_controller_param_path)"/>
+      <arg name="lon_controller_param_path" value="$(var sim_lon_controller_param_path)"/>
+      <arg name="vehicle_cmd_gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>
+      <arg name="control_validator_param_path" value="$(var sim_config_dir)/control/control_validator/control_validator.param.yaml"/>
+      <arg name="check_external_emergency_heartbeat" value="false"/>
+    </include>
+  </group>
+
+  <!-- Planning: upstream's, with a selectable max_velocity (common.param.yaml, written at launch
+       by planning_common_param), the velocity smoother's, drivable-area expansion's and the
+       obstacle cruise and stop modules' files as arguments -->
+  <group if="$(eval &quot;'$(var planning)' == 'true' and '$(var sim_planning)' == 'true'&quot;)">
+    <group scoped="false">
+      <include file="$(find-pkg-share autoware_global_parameter_loader)/launch/global_params.launch.py">
+        <arg name="use_sim_time" value="$(var use_sim_time)"/>
+        <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      </include>
+    </group>
+    <include file="$(find-pkg-share autoware_planning_launch)/launch/planning.launch.xml">
+      <arg name="module_preset" value="$(var planning_module_preset)"/>
+      <arg name="enable_all_modules_auto_mode" value="false"/>
+      <arg name="is_simulation" value="false"/>
+      <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      <arg name="data_path" value="$(var data_path)"/>
+      <arg name="common_param_path"
+           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/planning_common_param $(var planning_common_param_base) $(var max_velocity)')"/>
+      <arg name="velocity_smoother_param_path" value="$(var velocity_smoother_param_path)"/>
+      <arg name="behavior_path_planner_drivable_area_expansion_param_path" value="$(var drivable_area_expansion_param_path)"/>
+      <arg name="motion_velocity_planner_obstacle_cruise_module_param_path" value="$(var obstacle_cruise_param_path)"/>
+      <arg name="motion_velocity_planner_obstacle_stop_module_param_path" value="$(var obstacle_stop_param_path)"/>
+    </include>
+    <!-- 2.0.0's planning and control meet on /planning/trajectory; the profile keeps 1.5.0's
+         /planning/scenario_planning/trajectory beside it for the tools that record it -->
+    <node pkg="topic_tools" exec="relay" name="trajectory_relay">
+      <param name="input_topic" value="/planning/trajectory"/>
+      <param name="output_topic" value="/planning/scenario_planning/trajectory"/>
+    </node>
+  </group>
+
+  <!-- Localization: upstream's, with the profile's NDT, EKF, error monitor and NDT input filters
+       (ndt:=none: pose_source none, no scan matcher) -->
+  <group if="$(eval &quot;'$(var localization)' == 'true' and '$(var sim_localization)' == 'true' and '$(var ndt)' in ('autoware', 'none')&quot;)">
+    <!-- arguments of 2.0.0's nested localization launch files; ekf_localizer_param_path and
+         localization_error_monitor_param_path are the profile's own arguments, the same names -->
+    <let name="ndt_scan_matcher/ndt_scan_matcher_param_path" value="$(var sim_loc_config_path)/ndt_scan_matcher/ndt_scan_matcher.param.yaml"/>
+    <let name="ndt_scan_matcher/pointcloud_preprocessor/crop_box_filter_measurement_range_param_path"
+         value="$(var sim_loc_config_path)/ndt_scan_matcher/pointcloud_preprocessor/crop_box_filter_measurement_range.param.yaml"/>
+    <let name="ndt_scan_matcher/pointcloud_preprocessor/voxel_grid_downsample_filter_param_path"
+         value="$(var sim_loc_config_path)/ndt_scan_matcher/pointcloud_preprocessor/voxel_grid_filter.param.yaml"/>
+    <let name="ndt_scan_matcher/pointcloud_preprocessor/random_downsample_filter_param_path"
+         value="$(var sim_loc_config_path)/ndt_scan_matcher/pointcloud_preprocessor/random_downsample_filter.param.yaml"/>
+    <let name="pose_initializer_param_path" value="$(var sim_loc_config_path)/pose_initializer.param.yaml"/>
+    <let name="pose_instability_detector_param_path" value="$(var sim_loc_config_path)/pose_instability_detector.param.yaml"/>
+    <let name="stop_filter_param_path" value="$(var sim_loc_config_path)/stop_filter.param.yaml"/>
+    <let name="twist2accel_param_path" value="$(var sim_loc_config_path)/twist2accel.param.yaml"/>
+    <include file="$(find-pkg-share autoware_launch)/launch/components/component_localization.launch.xml">
+      <arg name="pose_source" value="$(eval &quot;'ndt' if '$(var ndt)' == 'autoware' else 'none'&quot;)"/>
+      <arg name="use_sim_time" value="$(var use_sim_time)"/>
+      <arg name="vehicle_model" value="$(var vehicle_model)"/>
+      <arg name="system_run_mode" value="logging_simulation"/>
+    </include>
+  </group>
+
+  <!-- System: the simulation's component-state topics, MRM handler and diagnostic graph -->
+  <group if="$(eval &quot;'$(var system)' == 'true' and '$(var sim_system)' == 'true'&quot;)">
+    <include file="$(find-pkg-share tier4_system_launch)/launch/system.launch.xml">
+      <arg name="run_mode" value="logging_simulation"/>
+      <arg name="launch_system_monitor" value="$(var launch_system_monitor)"/>
+      <arg name="launch_dummy_diag_publisher" value="$(var launch_dummy_diag_publisher)"/>
+      <arg name="sensor_model" value="$(var sensor_model)"/>
+      <arg name="component_state_monitor_topic_path" value="$(var sim_system_topics_path)"/>
+      <arg name="duplicated_node_checker_param_path" value="$(find-pkg-share autoware_launch)/config/system/duplicated_node_checker/duplicated_node_checker.param.yaml"/>
+      <arg name="processing_time_checker_param_path" value="$(find-pkg-share autoware_launch)/config/system/processing_time_checker/processing_time_checker.param.yaml"/>
+      <arg name="pipeline_latency_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/pipeline_latency_monitor/pipeline_latency_monitor.param.yaml"/>
+      <arg name="mrm_comfortable_stop_operator_param_path" value="$(find-pkg-share autoware_launch)/config/system/mrm_comfortable_stop_operator/mrm_comfortable_stop_operator.param.yaml"/>
+      <arg name="mrm_emergency_stop_operator_param_path" value="$(find-pkg-share autoware_launch)/config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml"/>
+      <arg name="dummy_diag_publisher_param_path" value="$(find-pkg-share autoware_launch)/config/system/diagnostics/dummy_diag_publisher.param.yaml"/>
+      <arg name="system_monitor_cpu_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/cpu_monitor.param.yaml"/>
+      <arg name="system_monitor_gpu_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/gpu_monitor.param.yaml"/>
+      <arg name="system_monitor_hdd_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/hdd_monitor.param.yaml"/>
+      <arg name="system_monitor_mem_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/mem_monitor.param.yaml"/>
+      <arg name="system_monitor_net_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/net_monitor.param.yaml"/>
+      <arg name="system_monitor_ntp_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/ntp_monitor.param.yaml"/>
+      <arg name="system_monitor_process_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/process_monitor.param.yaml"/>
+      <arg name="system_monitor_voltage_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/voltage_monitor.param.yaml"/>
+      <arg name="mrm_handler_param_path" value="$(var sim_mrm_handler_path)"/>
+      <arg name="diagnostic_graph_aggregator_param_path" value="$(find-pkg-share autoware_diagnostic_graph_aggregator)/config/default.param.yaml"/>
+      <arg name="diagnostic_graph_aggregator_graph_path" value="$(var diagnostic_graph_path)"/>
+    </include>
+  </group>
+</launch>

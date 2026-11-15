@@ -11,7 +11,7 @@ what it needs.
 |---|---|
 | `cars/<name>/` | Each car's Autoware packages, generated from its spec by `autoware_gen`: `<name>_description`, `<name>_launch`, `<name>_sensor_kit_description`, `<name>_sensor_kit_launch` ("The car packages") |
 | `individual_params` | Every car's sensor kit calibration, where Autoware looks it up (`config/default/<name>_sensor_kit/`) |
-| `autoware_sim_profile` | Autoware 1.5 set up for a simulated car, with no vehicle interface: `launch/autoware.launch.xml` ("The profile") |
+| `autoware_sim_profile` | Autoware 1.5.0 or 2.0.0 set up for a simulated car, with no vehicle interface: `launch/autoware.launch.xml` ("The profile") |
 | `autoware_sim_check` | `vehicle_check`: a car's vehicle side against its spec, with no Autoware and no scenario ([docs/vehicle-contract.md](docs/vehicle-contract.md)) |
 | `autoware_sim_pilot` | `auto_drive`: route and engage Autoware over its API and wait for arrival, from a poses file (`config/poses/<town>.yaml`); `capture_poses`: write those files from RViz. For driving to a goal with no scenario runner |
 
@@ -72,7 +72,7 @@ invalidate the maps.
 
 ## The profile
 
-`autoware_sim_profile/launch/autoware.launch.xml` is Autoware 1.5 with the settings a
+`autoware_sim_profile/launch/autoware.launch.xml` is Autoware 1.5.0 (or 2.0.0, below) with the settings a
 simulated car needs, and **no vehicle interface** (`launch_vehicle_interface:=false`). It
 needs no simulator and no scenario runner. A simulator's vehicle bridge includes it and starts
 its own interface beside it: acb's `carla_simulator.launch.xml` adds `acb_bridge`; aib's
@@ -96,8 +96,38 @@ Required: `map_path`, `vehicle_model`, `sensor_model`. The arguments a simulatio
 | `gpu` | empty | `CUDA_VISIBLE_DEVICES` for the stack |
 | `data_path` | `$HOME/autoware_data` | must be writable; fill it once with `ros2 run autoware_sim_profile setup_autoware_data` |
 | `autoware_launch` | autoware_launch's | the `autoware.launch.xml` the profile includes (a fork's, for example) |
+| `autoware_release` | `1.5.0` | the installed Autoware: `1.5.0` or `2.0.0` (below) |
 
 A `sim_*` switch set to `false` hands that component back to `autoware_launch`, unchanged.
+
+### Autoware 2.0.0
+
+`autoware_release:=2.0.0` runs the same profile, with the same arguments, on Autoware 2.0.0
+(`autoware-2.0.0.launch.xml`, included by `autoware.launch.xml`). 2.0.0 renamed the
+`tier4_*_launch` packages `autoware_*_launch`, moved the parameter trees out of
+`autoware_launch` into `autoware_<component>_config`, and passes every parameter file down as a
+launch argument. So the 2.0.0 profile includes upstream's own components and hands them its
+files; the one copy is `components/2.0.0/component_perception.launch.xml` (object recognition
+under `object_recognition`, issue 026). The profile's parameter changes are carried onto 2.0.0's
+files by `scripts/port_config.py` into `config/2.0.0/`: each leaf the profile changed from 1.5.0,
+set by key in 2.0.0's file (2.0.0's own new keys and comments stay), the lane variants and the
+`ndt:=none` graph derived the same way. It stops on what it cannot carry over, and
+`--check` fails until each is decided in its `DECIDED` table. The tracker's GIoU patch is not
+ported: 2.0.0's upstream value is the profile's.
+
+```bash
+# regenerate / check against a 2.0.0 install (the image's /opt/autoware, one directory per package);
+# the base of each port is 1.5.0's, so /opt/autoware/1.5.0/share/autoware_launch must be there too
+# (in the 2.0.0 image: -v /opt/autoware/1.5.0/share/autoware_launch:/opt/autoware/1.5.0/share/autoware_launch:ro)
+scripts/sync_release_2.0.0.sh /opt/autoware [--check]
+```
+
+Not on 2.0.0 (`check_launch_args` refuses them): `ndt:=cuda` (built against 1.5.0) and
+`use_multi_channel_tracker_merger:=false` (2.0.0's tracker has no such switch). With
+`traffic_light_fusion_only:=false`, 2.0.0's camera pipeline reads `/sensing/camera/traffic_light`.
+play_launch 0.35.0's Rust parser cannot evaluate 2.0.0's `agnocast_env.launch.py`
+(`EnvironmentVariable` has no `perform`): resolve and launch a 2.0.0 stack with
+`--parser python` until it does.
 
 **`clock_guard`** (`autoware_sim_profile`'s node, started when `sim_clock_guard:=true`) ends
 the stack when `/clock` goes back. An episode (a simulator world, from its load to the next)

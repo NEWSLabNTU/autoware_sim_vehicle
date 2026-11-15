@@ -33,3 +33,5 @@ check: test
     scripts/sync_perception_component.sh --check
     scripts/sync_planning_component.sh --check
     scripts/sync_localization_component.sh --check
+    # the 2.0.0 profile's copies, where a 2.0.0 install is at hand (a host setting: its /opt/autoware)
+    if [ -n "${AUTOWARE_2_0_0_ROOT:-}" ]; then scripts/sync_release_2.0.0.sh "$AUTOWARE_2_0_0_ROOT" --check; fi
