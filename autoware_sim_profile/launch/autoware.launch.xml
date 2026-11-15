@@ -202,6 +202,13 @@
        description="the motion velocity planner's obstacle_cruise parameter file (idling time, RSS braking, safe distance margin); upstream's by default; set per stack to run another cruise strategy (carla-scenario-bridge roadmap 074 E3)"/>
   <arg name="obstacle_stop_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml"
        description="the motion velocity planner's obstacle_stop parameter file (stop margin); upstream's by default (roadmap 074 E3)"/>
+  <!-- The behavior velocity planner's intersection module: upstream's by default, whose
+       occlusion handling is off (occlusion.enable false). The profile's
+       config/planning/behavior_velocity_planner/intersection_occlusion.param.yaml is upstream
+       1.5.0's with occlusion.enable true (carla-scenario-bridge roadmap 074 N5: a corner that
+       hides the other car). -->
+  <arg name="intersection_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection.param.yaml"
+       description="the behavior velocity planner's intersection module parameter file (occlusion handling, collision margins); upstream's by default (roadmap 074 N5)"/>
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
   <arg name="vehicle_cmd_gate_param_path" default="$(var up_control_config_dir)/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
        description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
@@ -433,6 +440,7 @@
       <arg name="planning_drivable_area_expansion_param_path" value="$(var drivable_area_expansion_param_path)"/>
       <arg name="obstacle_cruise_param_path" value="$(var obstacle_cruise_param_path)"/>
       <arg name="obstacle_stop_param_path" value="$(var obstacle_stop_param_path)"/>
+      <arg name="intersection_param_path" value="$(var intersection_param_path)"/>
     </include>
     <node pkg="topic_tools" exec="relay" name="trajectory_relay">
       <param name="input_topic" value="/planning/trajectory"/>

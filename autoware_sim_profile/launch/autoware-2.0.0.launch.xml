@@ -129,6 +129,7 @@
       <arg name="behavior_path_planner_drivable_area_expansion_param_path" value="$(var drivable_area_expansion_param_path)"/>
       <arg name="motion_velocity_planner_obstacle_cruise_module_param_path" value="$(var obstacle_cruise_param_path)"/>
       <arg name="motion_velocity_planner_obstacle_stop_module_param_path" value="$(var obstacle_stop_param_path)"/>
+      <arg name="behavior_velocity_planner_intersection_module_param_path" value="$(var intersection_param_path)"/>
     </include>
     <!-- 2.0.0's planning and control meet on /planning/trajectory; the profile keeps 1.5.0's
          /planning/scenario_planning/trajectory beside it for the tools that record it -->

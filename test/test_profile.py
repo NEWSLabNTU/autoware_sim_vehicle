@@ -436,3 +436,28 @@ def test_release_2_0_0_has_every_ported_file():
     assert names
     missing = sorted(n for n in names if not (root / n).is_file())
     assert not missing, missing
+
+
+BVP = "config/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/"
+
+
+def test_intersection_param_file_defaults_to_upstreams_and_reaches_the_planner():
+    """Carla-scenario-bridge roadmap 074 N5: the intersection module's parameter file is an
+    argument, upstream's by default on both releases, passed through the planning component (1.5.0)
+    and to autoware_planning_launch (2.0.0); the profile's copy differs from upstream's only in
+    occlusion.enable."""
+    name = "intersection_param_path"
+    launch = read(LAUNCH)
+    assert arg_default(launch, name) == f"$(find-pkg-share autoware_launch)/{BVP}intersection.param.yaml"
+    assert f'<arg name="{name}" value="$(var {name})"/>' in launch
+    component = read("launch/components/tier4_planning_component.launch.xml")
+    assert f'<arg name="{name}" default="$(find-pkg-share autoware_launch)/{BVP}intersection.param.yaml"' in component
+    assert f'<arg name="behavior_velocity_planner_intersection_module_param_path" value="$(var {name})"/>' in component
+    assert f'<arg name="behavior_velocity_planner_intersection_module_param_path" value="$(var {name})"/>' \
+        in read("launch/autoware-2.0.0.launch.xml")
+    up = [ln for ln in upstream(BVP + "intersection.param.yaml").read_text().splitlines()]
+    ours = [ln for ln in read("config/planning/behavior_velocity_planner/intersection_occlusion.param.yaml").splitlines()
+            if not ln.startswith("#")]
+    diff = [(a, b) for a, b in zip(up, ours) if a != b]
+    assert len(up) == len(ours) and diff == [("        enable: false", "        enable: true")]
+    assert up[up.index("        enable: false") - 1].strip() == "occlusion:"

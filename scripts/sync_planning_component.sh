@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Derive autoware_sim_profile's copy of autoware_launch's planning component.
 #
-# The copy exists for two changes: the planning common parameter file (common.param.yaml,
+# The copy exists for these changes: the planning common parameter file (common.param.yaml,
 # whose max_vel caps every planner at 4.17 m/s = 15 km/h) is an argument, which upstream
 # hard-codes; and so is the velocity smoother's (velocity_smoother.param.yaml, whose lateral
 # acceleration limit slows every bend to sqrt(1.0 R)), for a car that takes bends faster
 # (autoware-drift, swb roadmap 057); and so is behavior_path_planner's drivable-area expansion
 # (drivable_area_expansion.param.yaml), whose ego margins the profile widens for tight turns (swb
-# roadmap 072, the tour). carla_simulator.launch.xml passes upstream's own file at the default
+# roadmap 072, the tour); and the motion velocity planner's obstacle_cruise and obstacle_stop
+# files (swb roadmap 074 E3); and the behavior velocity planner's intersection module file,
+# whose occlusion handling upstream leaves off (swb roadmap 074 N5). carla_simulator.launch.xml
+# passes upstream's own file at the default
 # max_velocity:=4.17, so the default stack is upstream's, and a copy of it with another
 # max_vel (written at launch by autoware_sim_profile's planning_common_param) otherwise.
 #
@@ -21,27 +24,38 @@ share="${AUTOWARE_LAUNCH_SHARE:-/opt/autoware/1.5.0/share/autoware_launch}"
 up_component="$share/launch/components/tier4_planning_component.launch.xml"
 up_common="$share/config/planning/scenario_planning/common/common.param.yaml"
 component="$here/autoware_sim_profile/launch/components/tier4_planning_component.launch.xml"
-common_value='<arg name="common_param_path" value="$(var common_config_path)/common.param.yaml"/>'
-smoother_value='<arg name="velocity_smoother_param_path" value="$(var common_config_path)/autoware_velocity_smoother/velocity_smoother.param.yaml"/>'
-dae_value='<arg name="behavior_path_planner_drivable_area_expansion_param_path" value="$(var behavior_path_config_path)/drivable_area_expansion.param.yaml"/>'
+# Each argument the copy makes of a hard-coded upstream path: (upstream's arg line, the arg it
+# passes instead, the new argument's default and description). The default is the path upstream
+# hard-codes, so with every argument at its default the copy loads upstream's files.
+AL='$(find-pkg-share autoware_launch)/config/planning'
+LD="$AL/scenario_planning/lane_driving"
+subs=(
+  'common_param_path|$(var common_config_path)/common.param.yaml|planning_common_param_path|'"$AL"'/scenario_planning/common/common.param.yaml|planning common parameter file (max_vel and the acceleration and jerk limits)'
+  'velocity_smoother_param_path|$(var common_config_path)/autoware_velocity_smoother/velocity_smoother.param.yaml|planning_velocity_smoother_param_path|'"$AL"'/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml|the velocity smoother'"'"'s parameter file (the lateral acceleration limits that set the speed in a bend)'
+  'behavior_path_planner_drivable_area_expansion_param_path|$(var behavior_path_config_path)/drivable_area_expansion.param.yaml|planning_drivable_area_expansion_param_path|'"$LD"'/behavior_planning/behavior_path_planner/drivable_area_expansion.param.yaml|behavior_path_planner'"'"'s drivable-area expansion (the ego footprint margins it widens tight turns by)'
+  'motion_velocity_planner_obstacle_cruise_module_param_path|$(var motion_config_path)/motion_velocity_planner/obstacle_cruise.param.yaml|obstacle_cruise_param_path|'"$LD"'/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml|the motion velocity planner'"'"'s obstacle_cruise parameter file; upstream'"'"'s under motion_config_path by default'
+  'motion_velocity_planner_obstacle_stop_module_param_path|$(var motion_config_path)/motion_velocity_planner/obstacle_stop.param.yaml|obstacle_stop_param_path|'"$LD"'/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml|the motion velocity planner'"'"'s obstacle_stop parameter file; upstream'"'"'s under motion_config_path by default'
+  'behavior_velocity_planner_intersection_module_param_path|$(var behavior_velocity_config_path)/intersection.param.yaml|intersection_param_path|'"$LD"'/behavior_planning/behavior_velocity_planner/intersection.param.yaml|the behavior velocity planner'"'"'s intersection module parameter file (occlusion handling, collision margins); upstream'"'"'s under behavior_velocity_config_path by default'
+)
 for f in "$up_component" "$up_common"; do [ -f "$f" ] || { echo "no upstream file $f"; exit 2; }; done
-[ "$(grep -cF "$common_value" "$up_component")" = 1 ] || {
-    echo "upstream no longer hard-codes the common parameter path exactly once; revisit this copy"; exit 2; }
-[ "$(grep -cF "$smoother_value" "$up_component")" = 1 ] || {
-    echo "upstream no longer hard-codes the velocity smoother's parameter path exactly once; revisit this copy"; exit 2; }
-[ "$(grep -cF "$dae_value" "$up_component")" = 1 ] || {
-    echo "upstream no longer hard-codes the drivable-area expansion's parameter path exactly once; revisit this copy"; exit 2; }
+for e in "${subs[@]}"; do
+    IFS='|' read -r name value _ _ _ <<< "$e"
+    [ "$(grep -cF "<arg name=\"$name\" value=\"$value\"/>" "$up_component")" = 1 ] || {
+        echo "upstream no longer hard-codes $name exactly once; revisit this copy"; exit 2; }
+done
 # planning_common_param rewrites this one line; it must stay a single plain number.
 [ "$(grep -cE '^    max_vel: [0-9.]+ ' "$up_common")" = 1 ] || {
     echo "upstream common.param.yaml no longer has one '    max_vel: <number>' line; revisit planning_common_param"; exit 2; }
 
+esc() { printf '%s' "$1" | sed 's/[][\.*^$|&]/\\&/g'; }
 gen_component() {
-    sed \
-        -e "s|$(printf '%s' "$common_value" | sed 's/[][\.*^$|]/\\&/g')|<arg name=\"common_param_path\" value=\"\$(var planning_common_param_path)\"/>|" \
-        -e "s|$(printf '%s' "$smoother_value" | sed 's/[][\.*^$|]/\\&/g')|<arg name=\"velocity_smoother_param_path\" value=\"\$(var planning_velocity_smoother_param_path)\"/>|" \
-        -e "s|$(printf '%s' "$dae_value" | sed 's/[][\.*^$|]/\\&/g')|<arg name=\"behavior_path_planner_drivable_area_expansion_param_path\" value=\"\$(var planning_drivable_area_expansion_param_path)\"/>|" \
-        -e "0,/<launch>/s|<launch>|<launch>\n  <!-- GENERATED by acb scripts/sync_planning_component.sh from autoware_launch's\n       tier4_planning_component.launch.xml; do not edit by hand. Only changes:\n       the planning common parameter file (max_vel), the velocity smoother's and the drivable-area expansion's are arguments instead of hard-coded. -->\n  <arg name=\"planning_common_param_path\" default=\"\$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/common.param.yaml\" description=\"planning common parameter file (max_vel and the acceleration and jerk limits)\"/>\n  <arg name=\"planning_velocity_smoother_param_path\" default=\"\$(find-pkg-share autoware_launch)/config/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml\" description=\"the velocity smoother's parameter file (the lateral acceleration limits that set the speed in a bend)\"/>\n  <arg name=\"planning_drivable_area_expansion_param_path\" default=\"\$(find-pkg-share autoware_launch)/config/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/drivable_area_expansion.param.yaml\" description=\"behavior_path_planner's drivable-area expansion (the ego footprint margins it widens tight turns by)\"/>|" \
-        "$up_component"
+    local args=() header="  <!-- GENERATED by acb scripts/sync_planning_component.sh from autoware_launch's\n       tier4_planning_component.launch.xml; do not edit by hand. Only changes:\n       the parameter files named by the arguments below are arguments instead of hard-coded. -->"
+    for e in "${subs[@]}"; do
+        IFS='|' read -r name value arg default desc <<< "$e"
+        args+=(-e "s|$(esc "<arg name=\"$name\" value=\"$value\"/>")|<arg name=\"$name\" value=\"\$(var $arg)\"/>|")
+        header+="\n  <arg name=\"$arg\" default=\"$(esc "$default")\" description=\"$(esc "$desc")\"/>"
+    done
+    sed "${args[@]}" -e "0,/<launch>/s|<launch>|<launch>\n$header|" "$up_component"
 }
 
 if [ "${1:-}" = "--check" ]; then
