@@ -157,6 +157,8 @@
     <let name="twist2accel_param_path" value="$(var sim_loc_config_path)/twist2accel.param.yaml"/>
     <include file="$(find-pkg-share autoware_launch)/launch/components/component_localization.launch.xml">
       <arg name="pose_source" value="$(eval &quot;'ndt' if '$(var ndt)' == 'autoware' else 'none'&quot;)"/>
+      <!-- the profile's gnss_enabled (scensim issue 046): false, no GNSS initialization at start -->
+      <arg name="gnss_enabled" value="$(var gnss_enabled)"/>
       <arg name="use_sim_time" value="$(var use_sim_time)"/>
       <arg name="vehicle_model" value="$(var vehicle_model)"/>
       <arg name="system_run_mode" value="logging_simulation"/>
