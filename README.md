@@ -1,7 +1,7 @@
 # autoware_sim_vehicle
 
 The Autoware side of a simulated car, the same on every simulator
-([scensim](https://github.com/NEWSLabNTU/scenario-world-bridge) roadmap 051).
+([scensim](https://github.com/NEWSLabNTU/scensim) roadmap 051).
 The car itself is described once, in [sim_vehicle_spec](https://github.com/NEWSLabNTU/sim_vehicle_spec)
 (a submodule under `deps/`); this repository holds what Autoware needs of it, the Autoware
 profile a simulator's vehicle bridge runs, and the check that a vehicle bridge gives Autoware

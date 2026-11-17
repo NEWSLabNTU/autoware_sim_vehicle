@@ -3,7 +3,7 @@
 What a simulator's **vehicle side** (its vehicle bridge: acb_bridge on CARLA, aib's runner on
 Isaac Sim) gives Autoware, and how `vehicle_check` (package `autoware_sim_check`) checks it
 with no Autoware and no scenario runner. This is the I5 contract of scensim's
-design ([vehicle-side](https://github.com/NEWSLabNTU/scenario-world-bridge/blob/main/docs/design/vehicle-side.md),
+design ([vehicle-side](https://github.com/NEWSLabNTU/scensim/blob/main/docs/design/vehicle-side.md),
 "The I5 contract"). A new simulator is compatible with the shared Autoware packages when
 `vehicle_check` passes against its vehicle side.
 
