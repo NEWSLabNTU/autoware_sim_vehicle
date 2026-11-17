@@ -1,7 +1,7 @@
 # autoware_sim_vehicle
 
 The Autoware side of a simulated car, the same on every simulator
-([scenario-world-bridge](https://github.com/NEWSLabNTU/scenario-world-bridge) roadmap 051).
+([scensim](https://github.com/NEWSLabNTU/scenario-world-bridge) roadmap 051).
 The car itself is described once, in [sim_vehicle_spec](https://github.com/NEWSLabNTU/sim_vehicle_spec)
 (a submodule under `deps/`); this repository holds what Autoware needs of it, the Autoware
 profile a simulator's vehicle bridge runs, and the check that a vehicle bridge gives Autoware
@@ -92,7 +92,7 @@ Required: `map_path`, `vehicle_model`, `sensor_model`. The arguments a simulatio
 | `lidar_detection_model` | `clustering` | or `centerpoint` (TensorRT): full CenterPoint, `centerpoint/centerpoint` (upstream's `centerpoint` is `centerpoint_tiny`, still `centerpoint/centerpoint_tiny`); a one-time engine build of ~33 s, ~2 GB VRAM at peak |
 | `traffic_light_fusion_only` | `true` | signals from the vehicle bridge (V2X), no camera recognition |
 | `use_multi_channel_tracker_merger`, `occupancy_grid_map_method`, `perception`, `publish_ground_truth_objects` | | perception choices; see the launch file |
-| `extra_launch` | empty | a launch file of your own to include beside the stack, in its domain (scenario-world-bridge's vehicle agent is one); it receives `map_path` and `use_sim_time` |
+| `extra_launch` | empty | a launch file of your own to include beside the stack, in its domain (scensim's vehicle agent is one); it receives `map_path` and `use_sim_time` |
 | `gpu` | empty | `CUDA_VISIBLE_DEVICES` for the stack |
 | `data_path` | `$HOME/autoware_data` | must be writable; fill it once with `ros2 run autoware_sim_profile setup_autoware_data` |
 | `autoware_launch` | autoware_launch's | the `autoware.launch.xml` the profile includes (a fork's, for example) |

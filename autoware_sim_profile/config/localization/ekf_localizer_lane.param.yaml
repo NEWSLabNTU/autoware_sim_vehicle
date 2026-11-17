@@ -1,4 +1,4 @@
-# The EKF at a lane's half width (swb roadmap 063 d): ekf_localizer.param.yaml with only the
+# The EKF at a lane's half width (scensim roadmap 063 d): ekf_localizer.param.yaml with only the
 # covariance-ellipse diagnostics' lateral thresholds changed (test_profile.py holds the rest
 # equal), selected with the profile's ekf_localizer_param_path:=<this file>. The same reasons
 # and values as localization_error_monitor_lane.param.yaml: WARN and ERROR at 1.75 m, half a

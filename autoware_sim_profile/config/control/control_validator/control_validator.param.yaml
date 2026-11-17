@@ -23,7 +23,7 @@
       # 0.01 s upstream. In simulation /clock steps a frame at a time (50 ms at the Isaac
       # runner's 20 Hz), so a control command checked one tick after it was stamped reads 50 ms
       # late however fast the stack is, and the check fails, and an MRM follows, wherever a
-      # frame is heavy (dense trees on the NTU twin, scenario-world-bridge roadmap 059). Two
+      # frame is heavy (dense trees on the NTU twin, scensim roadmap 059). Two
       # ticks.
       nominal_latency: 0.1
       yaw_deviation_error: 1.0

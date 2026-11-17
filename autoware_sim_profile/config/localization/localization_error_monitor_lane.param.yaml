@@ -1,4 +1,4 @@
-# The localization error monitor at a lane's half width (swb roadmap 063 d), for a pose that is
+# The localization error monitor at a lane's half width (scensim roadmap 063 d), for a pose that is
 # expected to drift (a vision localizer with ndt:=none): selected with the profile's
 # localization_error_monitor_param_path:=<this file>. Only the lateral thresholds differ from
 # localization_error_monitor.param.yaml (test_profile.py holds the rest equal):

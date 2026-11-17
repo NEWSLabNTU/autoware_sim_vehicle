@@ -15,7 +15,7 @@
        without a scenario runner
 
      gpu:=N pins the side's CUDA nodes to one card (CUDA_VISIBLE_DEVICES); extra_launch:=<file>
-     starts a launch file of your own beside it, in the same domain (scenario-world-bridge's
+     starts a launch file of your own beside it, in the same domain (scensim's
      vehicle agent is one).
 -->
 <launch>
@@ -155,7 +155,7 @@
        detection, tracking and prediction off (issue 026). -->
   <arg name="publish_ground_truth_objects" default="false"/>
   <!-- A launch file of the user's own to start with this vehicle side, in its ROS domain and
-       environment: scenario-world-bridge's vehicle agent, a V2X or cooperative-perception node,
+       environment: scensim's vehicle agent, a V2X or cooperative-perception node,
        a recorder. It receives map_path and use_sim_time, and sees every launch argument
        given on the command line; nothing here depends on what it starts. -->
   <arg name="extra_launch" default="" description="path of a launch file to include beside this vehicle side; empty = none"/>
@@ -169,8 +169,8 @@
   <arg name="sim_localization" default="true" description="simulation-tuned localization params"/>
   <!-- The NDT scan matcher: autoware (Autoware's own, OpenMP), cuda (NEWSLabNTU's
        cuda_ndt_matcher: the same topics and parameters on the GPU, its own localization launch
-       with this profile's EKF, pose initializer and error monitor parameters; swb builds it in
-       third_party/cuda_ndt_matcher and the ego recipes source it) or none (swb roadmap 063 d:
+       with this profile's EKF, pose initializer and error monitor parameters; scensim builds it in
+       third_party/cuda_ndt_matcher and the ego recipes source it) or none (scensim roadmap 063 d:
        no scan matcher and no NDT input filters; the EKF, the twist estimator, the pose
        initializer, the stop filter and the error monitor as with autoware, and the EKF's pose
        input stays /localization/pose_estimator/pose_with_covariance for whoever publishes
@@ -186,7 +186,7 @@
   <arg name="sim_lat_controller_param_path" default="$(var sim_config_dir)/control/trajectory_follower/lateral/mpc.param.yaml"/>
   <!-- The longitudinal PID's slope compensation reaches +/-0.2 rad of pitch (upstream +/-0.1): the
        NTU car-park ramp is 10.9 deg, whose 1.85 m/s^2 of gravity the 0.1 cap compensated only to
-       0.98, so the car rolled back at engage and stalled at rest on the downhill (swb roadmap 072).
+       0.98, so the car rolled back at engage and stalled at rest on the downhill (scensim roadmap 072).
        Every scenario under sim_control. -->
   <arg name="sim_lon_controller_param_path" default="$(var sim_config_dir)/control/trajectory_follower/longitudinal/pid.param.yaml"/>
   <!-- Planning from this profile's copy of upstream's component, which takes the common parameter
@@ -221,7 +221,7 @@
        default="$(eval &quot;'$(var sim_config_dir)/system/diagnostics/autoware-sim-ndt-none.yaml' if '$(var ndt)' == 'none' else '$(var sim_config_dir)/system/diagnostics/autoware-sim.yaml'&quot;)"
        description="the diagnostic graph the operation modes are judged by; the profile's by default (without NDT's status under ndt:=none)"/>
   <!-- behavior_path_planner's drivable-area expansion: the profile's copy widens the ego footprint it
-       expands tight turns by (extra_width, extra_front_overhang 0.15 m; swb roadmap 072, the tour:
+       expands tight turns by (extra_width, extra_front_overhang 0.15 m; scensim roadmap 072, the tour:
        path_optimizer stopped at "outside drivable area" in 83-84 deg connectors). Every scenario. -->
   <arg name="drivable_area_expansion_param_path" default="$(var sim_config_dir)/planning/behavior_path_planner/drivable_area_expansion.param.yaml"
        description="behavior_path_planner's drivable_area_expansion.param.yaml (the profile's: wider ego margins in tight turns)"/>
@@ -249,7 +249,7 @@
        thresholds decide when localization counts as lost (a WARN already takes autonomous mode
        away: the diagnostic graph wants OK). The defaults are the profile's relaxed NDT ones;
        localization_error_monitor_lane.param.yaml and ekf_localizer_lane.param.yaml put the
-       lateral threshold at a lane's half width, 1.75 m (swb roadmap 063 d). The error monitor's
+       lateral threshold at a lane's half width, 1.75 m (scensim roadmap 063 d). The error monitor's
        reaches ndt:=autoware and none, not cuda (cuda_localization.launch.xml hard-codes it;
        check_launch_args refuses the pair); the EKF's reaches all three. -->
   <arg name="localization_error_monitor_param_path" default="$(var sim_loc_config_path)/localization_error_monitor.param.yaml"

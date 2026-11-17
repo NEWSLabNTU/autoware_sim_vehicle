@@ -6,7 +6,7 @@ launch without what one of them asks for (pair_problems).
 
 ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
 switch before it became `sim_control` -- would be dropped without a word and the run would
-use the default. Every wrapper that hands its arguments to the profile (swb's `just ego-av`,
+use the default. Every wrapper that hands its arguments to the profile (scensim's `just ego-av`,
 `ego-isaac`, `bg-av`; aib's `just autoware`) runs this first; acb's `just autoware` and `sim`
 take no profile arguments at all (`map:=` only) and refuse the rest:
 
@@ -44,7 +44,7 @@ CHOICES = {
 
 
 def pair_problems(given):
-    """Arguments that are valid alone but not together (swb roadmap 063 d)."""
+    """Arguments that are valid alone but not together (scensim roadmap 063 d)."""
     out = []
     ndt = given.get("ndt", "autoware")
     release = given.get("autoware_release", "1.5.0")

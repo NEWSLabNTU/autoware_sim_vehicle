@@ -297,7 +297,7 @@ def test_every_renamed_argument_exists_in_the_profile():
 
 
 def test_ndt_defaults_to_autowares_and_cuda_swaps_the_localization_launch():
-    """swb roadmap 057: ndt:=cuda runs cuda_ndt_matcher's localization launch with this
+    """scensim roadmap 057: ndt:=cuda runs cuda_ndt_matcher's localization launch with this
     profile's localization parameters; the default stays Autoware's own component."""
     launch = read(LAUNCH)
     assert arg_default(launch, "ndt") == "autoware"
@@ -319,7 +319,7 @@ COMPONENT = "launch/components/tier4_localization_component.launch.xml"
 
 
 def test_ndt_none_runs_the_component_without_a_scan_matcher():
-    """swb roadmap 063 d: ndt:=none is the profile's localization component with pose_source
+    """scensim roadmap 063 d: ndt:=none is the profile's localization component with pose_source
     none (no estimator upstream knows: no NDT, no NDT input filters, the pose initializer
     without alignment), and the EKF's pose input left on NDT's topic."""
     launch = read(LAUNCH)

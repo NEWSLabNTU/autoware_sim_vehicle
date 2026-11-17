@@ -20,7 +20,7 @@ replaced by a crop box that relays the LiDAR to the concatenated output topic do
 Autoware reads, without the points inside the car itself: the box is the car's vehicle_info
 (drift_mustang_description) plus SELF_MARGIN, in base_link, as a real sensor kit's self crop. A car
 whose roof LiDAR sees its own hood would otherwise see an obstacle inside its footprint, and
-the obstacle stop trims its trajectory to nothing (swb roadmap 057: drift_mustang's long hood
+the obstacle stop trims its trajectory to nothing (scensim roadmap 057: drift_mustang's long hood
 at 3.4 m, z 0.8). A car whose LiDAR sees none of itself loses nothing.
 """
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Derive autoware_sim_profile's copy of autoware_launch's localization component.
 #
-# The copy exists for one change (swb roadmap 063 d): the localization error monitor's and the
+# The copy exists for one change (scensim roadmap 063 d): the localization error monitor's and the
 # EKF's parameter files are arguments, which upstream hard-codes as
 # $(var loc_config_path)/<name>.param.yaml. Their defaults are that same path, so at the
 # defaults the stack is upstream's (with the profile's loc_config_path, as before). A run

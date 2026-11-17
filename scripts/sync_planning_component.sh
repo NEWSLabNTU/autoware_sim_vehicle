@@ -5,11 +5,11 @@
 # whose max_vel caps every planner at 4.17 m/s = 15 km/h) is an argument, which upstream
 # hard-codes; and so is the velocity smoother's (velocity_smoother.param.yaml, whose lateral
 # acceleration limit slows every bend to sqrt(1.0 R)), for a car that takes bends faster
-# (autoware-drift, swb roadmap 057); and so is behavior_path_planner's drivable-area expansion
-# (drivable_area_expansion.param.yaml), whose ego margins the profile widens for tight turns (swb
+# (autoware-drift, scensim roadmap 057); and so is behavior_path_planner's drivable-area expansion
+# (drivable_area_expansion.param.yaml), whose ego margins the profile widens for tight turns (scensim
 # roadmap 072, the tour); and the motion velocity planner's obstacle_cruise and obstacle_stop
-# files (swb roadmap 074 E3); and the behavior velocity planner's intersection module file,
-# whose occlusion handling upstream leaves off (swb roadmap 074 N5). carla_simulator.launch.xml
+# files (scensim roadmap 074 E3); and the behavior velocity planner's intersection module file,
+# whose occlusion handling upstream leaves off (scensim roadmap 074 N5). carla_simulator.launch.xml
 # passes upstream's own file at the default
 # max_velocity:=4.17, so the default stack is upstream's, and a copy of it with another
 # max_vel (written at launch by autoware_sim_profile's planning_common_param) otherwise.

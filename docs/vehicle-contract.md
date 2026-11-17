@@ -2,7 +2,7 @@
 
 What a simulator's **vehicle side** (its vehicle bridge: acb_bridge on CARLA, aib's runner on
 Isaac Sim) gives Autoware, and how `vehicle_check` (package `autoware_sim_check`) checks it
-with no Autoware and no scenario runner. This is the I5 contract of scenario-world-bridge's
+with no Autoware and no scenario runner. This is the I5 contract of scensim's
 design ([vehicle-side](https://github.com/NEWSLabNTU/scenario-world-bridge/blob/main/docs/design/vehicle-side.md),
 "The I5 contract"). A new simulator is compatible with the shared Autoware packages when
 `vehicle_check` passes against its vehicle side.
@@ -141,7 +141,7 @@ stamp minus that. Judging:
 
 - **Acceleration and braking**: the slope of a least-squares line through speed against time,
   over the samples at least 0.8 s into the step (the actuator lags) with a speed between 0.5
-  and 5.5 m/s, must be within **0.35 m/s^2** of the request (scenario-world-bridge's
+  and 5.5 m/s, must be within **0.35 m/s^2** of the request (scensim's
   acceptance.py longitudinal limit). Fewer than 3 samples there fails the step.
 - **Steering**: over the second half of the step, the mean reported tire angle must be within
   0.02 rad of the command, and the mean yaw rate within 15 % of the bicycle model's,

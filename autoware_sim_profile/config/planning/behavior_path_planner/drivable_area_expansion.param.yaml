@@ -1,7 +1,7 @@
 # autoware_sim_profile's copy of autoware_launch 1.5.0's drivable_area_expansion.param.yaml.
 # Changed: dynamic_expansion.ego.extra_width and extra_front_overhang 0.0 -> 0.15 m, so the drivable
 # area covers the car's swept footprint in tight connectors (83-84 deg turns of 10-14 m on the NTU
-# map, where path_optimizer stopped at "outside drivable area": swb roadmap 072, the tour). A profile
+# map, where path_optimizer stopped at "outside drivable area": scensim roadmap 072, the tour). A profile
 # change for every scenario.
 /**:
   ros__parameters:
