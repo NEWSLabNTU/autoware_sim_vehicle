@@ -23,7 +23,7 @@ All on one ROS domain, all with simulation time.
   (`vehicle_check` subscribes best effort, which matches either; Autoware's nodes take it
   reliable, so reliable is the safe choice). Publish it at least as often as the fastest
   sensor.
-- Time is `nanos(elapsed) + BASE_NS` (1000 s; see swb_world_protocol's `sim_time`), monotonic
+- Time is `nanos(elapsed) + BASE_NS` (1000 s; see scensim_world_protocol's `sim_time`), monotonic
   within one simulator episode. When the episode changes (a world load, a simulator restart)
   the vehicle side must exit before it publishes anything of the new episode, so the stack
   ends; the profile's `clock_guard` is the backstop when it does not ("The profile" in the
