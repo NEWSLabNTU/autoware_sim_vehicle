@@ -1,0 +1,9 @@
+# accel_map.csv and brake_map.csv beside this file: Autoware's pedal maps for the Tesla Model 3
+# on CARLA 1.0's body, read by acb_bridge and by Autoware's raw_vehicle_cmd_converter.
+# Not yet measured on this body: copies of the carla-0.9.16 body's maps, which the reduction
+# scaled to each body's wheel keeps close (the same force at the road per motor torque). They
+# claim no physics_hash until acb's build_longitudinal_maps.py measures them on CARLA 1.0 and
+# the vehicle check passes; `just check-generated` holds them to that.
+measured_on: provisional
+copied_from: carla-0.9.16
+reason: "CARLA 1.0's Chaos vehicle is new (roadmap 083 step 5); the 0.9.16 body's maps, measured 2026-10-23, until 1.0's are measured"
