@@ -126,12 +126,9 @@ scripts/sync_release_2.0.0.sh /opt/autoware [--check]
 ```
 
 **Autoware 2.1.0** (`autoware_release:=2.1.0`) is 2.0.0 with autoware_universe 0.53.2, and the profile
-runs it as 2.0.0, with one addition. universe 0.53.2's `map_based_prediction` declares
-`lane_change_path_suppression.*` with no default, and autoware_launch 0.53.0's parameter file lacks
-those keys. So on 2.1.0 the profile passes its own copy,
-`config/2.1.0/perception/object_recognition/prediction/map_based_prediction.param.yaml`: autoware_launch
-0.53.0's file plus universe 0.53.2's three keys. Its test fails against an installed 2.1.0 whose file has the keys
-already. Then the copy can go.
+runs it as 2.0.0. universe 0.53.2's `map_based_prediction` declares `lane_change_path_suppression.*`
+with no default; 2.1.0's Debian `autoware_perception_config` carries those keys (the autoware_launch
+0.53.0 tag does not), so upstream's file serves. A live Tutorial 1 passed on it (scensim, 2026-11-18).
 
 Not on 2.0.0 or 2.1.0 (`check_launch_args` refuses them): `ndt:=cuda` (built against 1.5.0) and
 `use_multi_channel_tracker_merger:=false` (2.0.0's tracker has no such switch). With

@@ -28,13 +28,11 @@
        1.5.0 (/opt/autoware/1.5.0, this file's own components and parameter files), 2.0.0
        (autoware-2.0.0.launch.xml: upstream 2.0.0's components, the profile's 2.0.0 parameter files
        under config/2.0.0/, ported by scripts/port_config.py) or 2.1.0 (2.0.0's components and files:
-       2.1.0 is 2.0.0 with autoware_universe 0.53.2, so aw2x is either; aw21 picks the files 0.53.2
-       needs on top, under config/2.1.0/). The arguments below are the same for all; their defaults
+       2.1.0 is 2.0.0 with autoware_universe 0.53.2, so aw2x is either). The arguments below are the same for all; their defaults
        follow the release. check_launch_args refuses any other. -->
   <arg name="autoware_release" default="1.5.0" description="Autoware release: 1.5.0, 2.0.0 or 2.1.0"/>
   <let name="aw15" value="$(eval &quot;'$(var autoware_release)' == '1.5.0'&quot;)"/>
   <let name="aw2x" value="$(eval &quot;'$(var autoware_release)' in ('2.0.0', '2.1.0')&quot;)"/>
-  <let name="aw21" value="$(eval &quot;'$(var autoware_release)' == '2.1.0'&quot;)"/>
   <!-- the profile's parameter files and upstream's control and planning parameter trees, per release -->
   <let name="sim_config_dir" value="$(find-pkg-share autoware_sim_profile)/config" if="$(var aw15)"/>
   <let name="sim_config_dir" value="$(find-pkg-share autoware_sim_profile)/config/2.0.0" if="$(var aw2x)"/>

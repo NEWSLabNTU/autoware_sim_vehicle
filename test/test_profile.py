@@ -465,8 +465,6 @@ def test_intersection_param_file_defaults_to_upstreams_and_reaches_the_planner()
 
 # --- Autoware 2.1.0: 2.0.0's profile plus universe 0.53.2's delta -----------------------------
 
-PREDICTION_21 = ("config/2.1.0/perception/object_recognition/prediction/"
-                 "map_based_prediction.param.yaml")
 UPSTREAM_21 = Path("/opt/autoware/2.1.0/share/autoware_perception_config")
 
 
@@ -491,27 +489,15 @@ def test_release_2_1_0_runs_2_0_0s_profile():
         assert f'<let name="{name}" value="' in launch.split('if="$(var aw15)"/>', 1)[1]
 
 
-def test_release_2_1_0_hands_map_based_prediction_the_new_keys():
-    """universe 0.53.2 declares lane_change_path_suppression.* with no default; autoware_launch
-    0.53.0's file lacks them, so 2.1.0 passes the profile's copy (and only 2.1.0)."""
+def test_release_2_1_0_takes_upstreams_prediction_parameters():
+    """universe 0.53.2 declares lane_change_path_suppression.* with no default; 2.1.0's own
+    autoware_perception_config has them, so the profile passes no copy (it had one until the
+    install showed the keys, 2026-11-18)."""
     v2 = (PROFILE / "launch/autoware-2.0.0.launch.xml").read_text()
-    let = v2.split('<let name="object_recognition_prediction_map_based_prediction_param_path"', 1)[1]
-    let = let.split("/>", 1)[0]
-    assert PREDICTION_21 in let and 'if="$(var aw21)"' in let
-    p = params(yaml.safe_load((PROFILE / PREDICTION_21).read_text()))
-    assert p["lane_change_path_suppression"] == {
-        "enable": True, "keep_when_lane_ends": True, "lane_end_rescue_time_horizon": 5.0}
-
-
-def test_release_2_1_0_prediction_copy_is_upstreams_plus_the_keys():
-    """Against an installed 2.1.0: the copy is its autoware_launch file plus the three keys (and
-    when the install's file has them already, the copy is no longer needed)."""
+    assert "map_based_prediction_param_path" not in v2
+    assert not (PROFILE / "config/2.1.0").exists()
     up = UPSTREAM_21 / "config/object_recognition/prediction/map_based_prediction.param.yaml"
     if not up.is_file():
         pytest.skip(f"no Autoware 2.1.0 at {up}")
-    theirs = params(yaml.safe_load(up.read_text()))
-    ours = params(yaml.safe_load((PROFILE / PREDICTION_21).read_text()))
-    assert "lane_change_path_suppression" not in theirs, (
-        "2.1.0's autoware_launch has the keys: drop config/2.1.0's copy")
-    ours.pop("lane_change_path_suppression")
-    assert ours == theirs
+    assert set(params(yaml.safe_load(up.read_text()))["lane_change_path_suppression"]) == {
+        "enable", "keep_when_lane_ends", "lane_end_rescue_time_horizon"}
