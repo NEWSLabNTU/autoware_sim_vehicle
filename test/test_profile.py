@@ -422,7 +422,7 @@ def test_release_dirs_name_both_releases():
     for var, value in RELEASE_15.items():
         name = var[len("$(var "):-1]
         assert f'<let name="{name}" value="{value}" if="$(var aw15)"/>' in launch
-        assert f'<let name="{name}" value="' in launch.split(f'if="$(var aw15)"/>', 1)[1]
+        assert f'<let name="{name}" value="' in launch.split('if="$(var aw15)"/>', 1)[1]
         assert launch.count(f'<let name="{name}" ') == 2
 
 
