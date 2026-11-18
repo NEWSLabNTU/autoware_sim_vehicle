@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_launch_args: refuse the launch arguments roadmap 051 renamed, naming the new ones, and a
-value outside an argument's choices (ndt:= autoware, cuda or none; autoware_release:= 1.5.0 or
-2.0.0), and a pair that would
+value outside an argument's choices (ndt:= autoware, cuda or none; autoware_release:= 1.5.0,
+2.0.0 or 2.1.0), and a pair that would
 launch without what one of them asks for (pair_problems).
 
 ROS launch ignores an argument no file declares, so `carla_control:=false` -- the profile's
@@ -39,7 +39,7 @@ RETIRED_VALUES = {
 # Arguments with a closed set of values: a value outside it would launch without the part.
 CHOICES = {
     "ndt": ("autoware", "cuda", "none"),
-    "autoware_release": ("1.5.0", "2.0.0"),
+    "autoware_release": ("1.5.0", "2.0.0", "2.1.0"),
 }
 
 
@@ -48,14 +48,14 @@ def pair_problems(given):
     out = []
     ndt = given.get("ndt", "autoware")
     release = given.get("autoware_release", "1.5.0")
-    if release == "2.0.0":
-        # carla-scenario-bridge roadmap 077: what the 2.0.0 profile has no counterpart for
+    if release in ("2.0.0", "2.1.0"):
+        # carla-scenario-bridge roadmap 077: what the 2.x profile has no counterpart for
         if ndt == "cuda":
-            out.append("ndt:=cuda is built against Autoware 1.5.0; on autoware_release:=2.0.0 use "
-                       "ndt:=autoware or ndt:=none")
+            out.append(f"ndt:=cuda is built against Autoware 1.5.0; on autoware_release:={release} "
+                       "use ndt:=autoware or ndt:=none")
         if given.get("use_multi_channel_tracker_merger", "true").lower() == "false":
-            out.append("use_multi_channel_tracker_merger:=false has no counterpart in Autoware 2.0.0's "
-                       "tracker; leave it out on autoware_release:=2.0.0")
+            out.append(f"use_multi_channel_tracker_merger:=false has no counterpart in Autoware "
+                       f"{release}'s tracker; leave it out on autoware_release:={release}")
     if ndt == "cuda" and "localization_error_monitor_param_path" in given:
         # cuda_localization.launch.xml hard-codes the error monitor's file
         out.append("localization_error_monitor_param_path:= does not reach ndt:=cuda's "

@@ -461,3 +461,57 @@ def test_intersection_param_file_defaults_to_upstreams_and_reaches_the_planner()
     diff = [(a, b) for a, b in zip(up, ours) if a != b]
     assert len(up) == len(ours) and diff == [("        enable: false", "        enable: true")]
     assert up[up.index("        enable: false") - 1].strip() == "occlusion:"
+
+
+# --- Autoware 2.1.0: 2.0.0's profile plus universe 0.53.2's delta -----------------------------
+
+PREDICTION_21 = ("config/2.1.0/perception/object_recognition/prediction/"
+                 "map_based_prediction.param.yaml")
+UPSTREAM_21 = Path("/opt/autoware/2.1.0/share/autoware_perception_config")
+
+
+def test_release_2_1_0_is_a_choice_with_2_0_0s_refusals():
+    m = _check_launch_args()
+    assert m.problems(["autoware_release:=2.1.0"]) == []
+    assert m.problems(["autoware_release:=2.2.0"])
+    p = m.problems(["autoware_release:=2.1.0", "ndt:=cuda"])
+    assert len(p) == 1 and "on autoware_release:=2.1.0 use ndt:=autoware" in p[0]
+    p = m.problems(["autoware_release:=2.1.0", "use_multi_channel_tracker_merger:=false"])
+    assert len(p) == 1 and "Autoware 2.1.0's tracker" in p[0]
+
+
+def test_release_2_1_0_runs_2_0_0s_profile():
+    """2.1.0 takes every per-release directory and the 2.0.0 launch file that 2.0.0 does."""
+    launch = (PROFILE / LAUNCH).read_text()
+    assert "aw20" not in launch
+    assert "'$(var autoware_release)' in ('2.0.0', '2.1.0')" in launch
+    assert '<group if="$(var aw2x)" scoped="false">' in launch
+    for name in ("sim_config_dir", "up_control_config_dir", "up_planning_config_dir"):
+        assert launch.count(f'<let name="{name}" ') == 2
+        assert f'<let name="{name}" value="' in launch.split('if="$(var aw15)"/>', 1)[1]
+
+
+def test_release_2_1_0_hands_map_based_prediction_the_new_keys():
+    """universe 0.53.2 declares lane_change_path_suppression.* with no default; autoware_launch
+    0.53.0's file lacks them, so 2.1.0 passes the profile's copy (and only 2.1.0)."""
+    v2 = (PROFILE / "launch/autoware-2.0.0.launch.xml").read_text()
+    let = v2.split('<let name="object_recognition_prediction_map_based_prediction_param_path"', 1)[1]
+    let = let.split("/>", 1)[0]
+    assert PREDICTION_21 in let and 'if="$(var aw21)"' in let
+    p = params(yaml.safe_load((PROFILE / PREDICTION_21).read_text()))
+    assert p["lane_change_path_suppression"] == {
+        "enable": True, "keep_when_lane_ends": True, "lane_end_rescue_time_horizon": 5.0}
+
+
+def test_release_2_1_0_prediction_copy_is_upstreams_plus_the_keys():
+    """Against an installed 2.1.0: the copy is its autoware_launch file plus the three keys (and
+    when the install's file has them already, the copy is no longer needed)."""
+    up = UPSTREAM_21 / "config/object_recognition/prediction/map_based_prediction.param.yaml"
+    if not up.is_file():
+        pytest.skip(f"no Autoware 2.1.0 at {up}")
+    theirs = params(yaml.safe_load(up.read_text()))
+    ours = params(yaml.safe_load((PROFILE / PREDICTION_21).read_text()))
+    assert "lane_change_path_suppression" not in theirs, (
+        "2.1.0's autoware_launch has the keys: drop config/2.1.0's copy")
+    ours.pop("lane_change_path_suppression")
+    assert ours == theirs

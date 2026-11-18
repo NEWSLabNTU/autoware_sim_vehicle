@@ -63,6 +63,12 @@
          parameter file, an argument of pointcloud_map_filter.launch.xml -->
     <let name="voxel_based_compare_map_filter_node_param_path"
          value="$(var sim_config_dir)/perception/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml"/>
+    <!-- 2.1.0: map_based_prediction (universe 0.53.2) declares lane_change_path_suppression.* with
+         no default, and autoware_launch 0.53.0's file lacks them; the profile's copy adds them,
+         an argument of prediction.launch.xml -->
+    <let name="object_recognition_prediction_map_based_prediction_param_path"
+         value="$(find-pkg-share autoware_sim_profile)/config/2.1.0/perception/object_recognition/prediction/map_based_prediction.param.yaml"
+         if="$(var aw21)"/>
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/2.0.0/component_perception.launch.xml">
       <arg name="object_recognition" value="$(eval &quot;'$(var perception)' == 'true' and '$(var publish_ground_truth_objects)' != 'true'&quot;)"/>
       <arg name="data_path" value="$(var data_path)"/>

@@ -96,7 +96,7 @@ Required: `map_path`, `vehicle_model`, `sensor_model`. The arguments a simulatio
 | `gpu` | empty | `CUDA_VISIBLE_DEVICES` for the stack |
 | `data_path` | `$HOME/autoware_data` | must be writable; fill it once with `ros2 run autoware_sim_profile setup_autoware_data` |
 | `autoware_launch` | autoware_launch's | the `autoware.launch.xml` the profile includes (a fork's, for example) |
-| `autoware_release` | `1.5.0` | the installed Autoware: `1.5.0` or `2.0.0` (below) |
+| `autoware_release` | `1.5.0` | the installed Autoware: `1.5.0`, `2.0.0` or `2.1.0` (below) |
 
 A `sim_*` switch set to `false` hands that component back to `autoware_launch`, unchanged.
 
@@ -125,7 +125,15 @@ ported: 2.0.0's upstream value is the profile's.
 scripts/sync_release_2.0.0.sh /opt/autoware [--check]
 ```
 
-Not on 2.0.0 (`check_launch_args` refuses them): `ndt:=cuda` (built against 1.5.0) and
+**Autoware 2.1.0** (`autoware_release:=2.1.0`) is 2.0.0 with autoware_universe 0.53.2, and the profile
+runs it as 2.0.0, with one addition. universe 0.53.2's `map_based_prediction` declares
+`lane_change_path_suppression.*` with no default, and autoware_launch 0.53.0's parameter file lacks
+those keys. So on 2.1.0 the profile passes its own copy,
+`config/2.1.0/perception/object_recognition/prediction/map_based_prediction.param.yaml`: autoware_launch
+0.53.0's file plus universe 0.53.2's three keys. Its test fails against an installed 2.1.0 whose file has the keys
+already. Then the copy can go.
+
+Not on 2.0.0 or 2.1.0 (`check_launch_args` refuses them): `ndt:=cuda` (built against 1.5.0) and
 `use_multi_channel_tracker_merger:=false` (2.0.0's tracker has no such switch). With
 `traffic_light_fusion_only:=false`, 2.0.0's camera pipeline reads `/sensing/camera/traffic_light`.
 `occupancy_grid_map_method` defaults to `laserscan_based` on 2.0.0: the 2.0.0 image ships only that
