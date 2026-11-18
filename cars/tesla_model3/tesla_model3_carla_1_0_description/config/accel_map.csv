@@ -1,5 +1,7 @@
 # Throttle response of vehicle.tesla.model3 on CARLA 1.0, measured by scripts/probe_longitudinal.py
 # CARLA tick 0.050 s, physics substeps of 0.0031 s (max 16) -- the timing scensim_carla_world uses
+# breakaway_pedal: 0.401
+# (the lowest throttle that starts the car from rest; acb_bridge raises a start to it)
 # Rows: pedal position. Columns: vehicle speed in m/s.
 # Cells: measured longitudinal acceleration in m/s^2.
 default,0.0,1.0,2.0,3.0,4.0,5.0,6.0,8.0,11.0,14.0,17.0,20.0,24.0
@@ -13,4 +15,4 @@ default,0.0,1.0,2.0,3.0,4.0,5.0,6.0,8.0,11.0,14.0,17.0,20.0,24.0
 0.70,2.549,2.549,2.538,2.527,2.516,2.505,2.493,2.468,2.428,2.385,2.338,2.288,2.102
 0.80,3.332,3.332,3.322,3.311,3.300,3.288,3.276,3.251,3.211,3.168,3.122,3.072,2.861
 0.90,4.220,4.220,4.210,4.199,4.187,4.176,4.164,4.139,4.099,4.056,4.009,3.960,3.728
-1.00,5.212,5.212,5.202,5.191,5.180,5.168,5.156,5.131,5.091,5.048,5.002,4.952,4.704
+1.00,5.211,5.211,5.202,5.191,5.180,5.168,5.156,5.131,5.091,5.048,5.002,4.952,4.704
