@@ -125,12 +125,16 @@ The car must stand on a flat straight road with about 150 m free ahead, or on a 
 reads it back from `velocity_status` (speed, yaw rate) and `steering_status` (angle):
 
 1. 3 s of wall time holding still: acceleration -1.5 m/s^2, target velocity 0.
-2. Six longitudinal steps, in this order: accelerate +1.0, brake -1.0, accelerate +2.0,
+2. A start from rest, `start +0.3`: acceleration +0.3 m/s^2, target velocity 1 m/s, as
+   Autoware's gentle start asks. It passes when the car reaches 0.5 m/s within 10 s of
+   simulation time. CARLA 1.0's Chaos vehicle stays in neutral below a breakaway throttle
+   (0.36 for the Model 3), which the pedal maps record as `breakaway_pedal`.
+3. Six longitudinal steps, in this order: accelerate +1.0, brake -1.0, accelerate +2.0,
    brake -2.5, accelerate +3.0, brake -4.0 m/s^2. An acceleration step commands its
    acceleration with a target velocity of 16 m/s and ends at 6 m/s; a braking step commands
    its deceleration with a target of 0 and ends at 0.2 m/s or below. Either ends after 20 s of
    simulation time.
-3. Six steering steps, +0.05, -0.05, +0.10, -0.10, +0.15, -0.15 rad of tire angle, 2.5 s of
+4. Six steering steps, +0.05, -0.05, +0.10, -0.10, +0.15, -0.15 rad of tire angle, 2.5 s of
    simulation time each, alternating sides so the car stays near its lane, driving toward
    4 m/s by a proportional controller on the acceleration (`1.5 x (4 - v)`, within +-2
    m/s^2; target velocity 4 m/s).
@@ -209,7 +213,8 @@ It prints `PASS` or `FAIL` per topic (with each problem) and per step, then
 - `contract`: every expected topic and `/robot_description`, each with its list of problems
   (empty: it passed). Present when the contract ran.
 - `dynamics`: one object per step, in order. Longitudinal steps carry `measured` (m/s^2) and
-  `error` (measured minus request); steering steps carry `steer` (mean reported angle, rad),
+  `error` (measured minus request); the start step carries `moving_after_s`, or `speed`
+  (the highest reached) and `why` when it failed; steering steps carry `steer` (mean reported angle, rad),
   `speed`, `yaw_rate`, `bicycle_yaw_rate` (rad/s) and `yaw_share_off` (the yaw rate's share
   off the model). A step that could not be judged has `pass: false` and `why`. A run that
   could not start is one entry, `{"step": "start", "pass": false, "why": ...}`. Present when

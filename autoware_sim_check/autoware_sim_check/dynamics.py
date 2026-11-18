@@ -2,7 +2,9 @@
 Pure: the plan, and the analysis of what was recorded.
 
 The run drives the vehicle side's control interface directly (/control/command/control_cmd,
-as Autoware's controller does): acceleration steps from rest to SPEED, braking steps from
+as Autoware's controller does): a start from rest on a small request (START: the car must
+move, as Autoware's gentle start asks; CARLA 1.0 left the car standing below a breakaway
+throttle), acceleration steps from rest to SPEED, braking steps from
 SPEED to rest, and a steering sweep at STEER_SPEED alternating left and right so the car stays
 near its lane. Each step is judged on its steady part: the acceleration the car reached (a
 line through its speeds) against the request, within acceptance.py's 0.35 m/s^2; the steering
@@ -27,6 +29,9 @@ TRACKING = 0.35               # m/s^2, acceptance.py's longitudinal limit
 STEER_TOLERANCE = 0.02        # rad
 YAW_SHARE = 0.15              # the yaw rate's share it may be off the bicycle model's
 SETTLE = 0.8                  # s at the start of a step that is not judged (the lags)
+START = 0.3                   # m/s^2, the start from rest's request
+START_MOVING = 0.5            # m/s that counts as moving (scaled with the plan's speeds)
+START_SECONDS = 10.0          # s it has to get there
 
 
 @dataclass(frozen=True)
@@ -61,12 +66,12 @@ def speeds_for(top):
 @dataclass
 class Step:
     name: str
-    kind: str          # accel, brake, steer
+    kind: str          # start, accel, brake, steer
     request: float     # m/s^2 or rad
 
 
 def plan():
-    steps = []
+    steps = [Step(f"start {START:+.1f}", "start", START)]
     for a, b in zip(ACCELS, BRAKES):
         steps.append(Step(f"accel {a:+.1f}", "accel", a))
         steps.append(Step(f"brake {b:+.1f}", "brake", b))
@@ -80,6 +85,8 @@ def command(step, t_in_step, speed, sp=ROAD):
     """(acceleration, target velocity, tire angle) for `step`, `t_in_step` s into it."""
     if step.kind == "accel":
         return step.request, sp.speed + 10.0, 0.0
+    if step.kind == "start":
+        return step.request, 2 * _moving(sp), 0.0
     if step.kind == "brake":
         return step.request, 0.0, 0.0
     # steer: hold the steering speed with a P controller on the acceleration
@@ -87,7 +94,13 @@ def command(step, t_in_step, speed, sp=ROAD):
     return a, sp.steer_speed, step.request
 
 
+def _moving(sp):
+    return START_MOVING * sp.speed / SPEED
+
+
 def done(step, t_in_step, speed, sp=ROAD):
+    if step.kind == "start":
+        return speed >= _moving(sp) or t_in_step > START_SECONDS
     if step.kind == "accel":
         return speed >= sp.speed or t_in_step > 20.0
     if step.kind == "brake":
@@ -109,6 +122,14 @@ def judge(step, samples, wheel_base, sp=ROAD):
     """{step, request, measured, error, pass, ...} from a step's samples: dicts with t (s
     into the step), v, steer (the reported tire angle), yaw_rate."""
     out = {"step": step.name, "request": step.request}
+    if step.kind == "start":
+        moved = [s for s in samples if s["v"] >= _moving(sp)]
+        if not moved:
+            top = max((s["v"] for s in samples), default=0.0)
+            return {**out, "pass": False, "speed": round(top, 3),
+                    "why": f"still below {_moving(sp):.2f} m/s after {START_SECONDS:.0f} s "
+                           "from rest: the car does not start on a small request"}
+        return {**out, "pass": True, "moving_after_s": round(moved[0]["t"], 2)}
     if step.kind in ("accel", "brake"):
         lo, hi = sp.margin, sp.speed - sp.margin
         win = [s for s in samples if s["t"] >= sp.settle and lo <= s["v"] <= hi]

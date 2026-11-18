@@ -18,7 +18,7 @@ def ramp(a, v0=0.0, dt=0.05, until=None, lag=0.0):
 
 def test_the_plan_pairs_accelerations_and_brakings_then_sweeps_both_ways():
     names = [s.name for s in D.plan()]
-    assert names[:2] == ["accel +1.0", "brake -1.0"]
+    assert names[:3] == ["start +0.3", "accel +1.0", "brake -1.0"]
     assert names[-2:] == ["steer +0.15", "steer -0.15"]
 
 
@@ -87,3 +87,17 @@ def test_a_small_car_that_does_what_it_is_asked_passes():
         step = D.Step(f"accel {a:+.1f}", "accel", a)
         r = D.judge(step, ramp(a, lag=0.05, until=lambda v: v >= sp.speed), 0.319, sp)
         assert r["pass"], r
+
+
+def test_a_start_from_rest_must_move_the_car():
+    # CARLA 1.0 left the car standing below a breakaway throttle (2026-11-18): Autoware's
+    # gentle start asks about 0.3 m/s^2
+    step = D.plan()[0]
+    assert step.kind == "start" and D.command(step, 0.0, 0.0)[0] == D.START
+    still = [{"t": t / 10, "v": 0.0} for t in range(100)]
+    r = D.judge(step, still, 2.9)
+    assert not r["pass"] and "does not start" in r["why"]
+    moving = [{"t": t / 10, "v": 0.3 * t / 10} for t in range(40)]
+    r = D.judge(step, moving, 2.9)
+    assert r["pass"] and 1.6 <= r["moving_after_s"] <= 1.8
+    assert D.done(step, 2.0, 0.6) and not D.done(step, 2.0, 0.1)
