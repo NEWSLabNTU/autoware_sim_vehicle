@@ -46,6 +46,9 @@ def test_provisional_maps_claim_no_physics_hash(tmp_path):
     src = ROOT / f"cars/tesla_model3/{car}_description/config"
     dst = tmp_path / f"cars/tesla_model3/{car}_description/config"
     shutil.copytree(src, dst)
+    assert pedal_maps_problem(spec, tmp_path, car, default=False) is None  # measured
+    (dst / "pedal_maps.yaml").write_text(
+        "measured_on: provisional\ncopied_from: carla-0.9.16\nreason: not measured yet\n")
     assert pedal_maps_problem(spec, tmp_path, car, default=False) is None
     assert "default body" in pedal_maps_problem(spec, tmp_path, car, default=True)
     meta = dst / "pedal_maps.yaml"

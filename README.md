@@ -89,8 +89,8 @@ them), or when the spec has no `carla.physics` and the maps were not measured on
 blueprint. `physics_hash` covers only what drives the car, so moving a sensor does not
 invalidate the maps. Each body has its own maps and its own `physics_hash`. A body other than
 the first may carry `measured_on: provisional`, with `copied_from` (the body whose maps they
-are) and a `reason`, and no `physics_hash`, until its own are measured:
-`tesla_model3_carla_1_0`'s are the `carla-0.9.16` body's for now.
+are) and a `reason`, and no `physics_hash`, until its own are measured.
+`tesla_model3_carla_1_0`'s were measured on CARLA 1.0 with the spec's physics for that body.
 
 ## The profile
 
