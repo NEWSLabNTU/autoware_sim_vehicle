@@ -9,7 +9,9 @@
 
      A car from another repository (aib docs/vehicle-from-another-repository.md) names its own
      spec with spec:=<path>, and its own description with vehicle_model:=, sensor_model:= and
-     config_dir:= (the directory holding its sensors_calibration.yaml). -->
+     config_dir:= (the directory holding its sensors_calibration.yaml). A body's own vehicle
+     model takes the car's sensor kit: vehicle_model:=tesla_model3_carla_1_0
+     sensor_model:=tesla_model3_sensor_kit. -->
 <launch>
   <arg name="vehicle_model" default="tesla_model3"/>
   <arg name="sensor_model" default="$(var vehicle_model)_sensor_kit"/>
@@ -17,7 +19,7 @@
   <arg name="what" default="all" description="contract | dynamics | all"/>
   <arg name="listen" default="10.0" description="s of simulation time the contract listens"/>
   <arg name="out" default="/tmp/vehicle_check.json"/>
-  <arg name="spec" default="" description="the vehicle spec's path; empty: sim_vehicle_spec's vehicles/$(var vehicle_model).yaml"/>
+  <arg name="spec" default="" description="the vehicle spec's path; empty: sim_vehicle_spec's vehicles/&lt;name&gt;.yaml, the name in $(var vehicle_model)_description's spec_hash.yaml"/>
   <arg name="config_dir" default="$(find-pkg-share $(var sensor_model)_description)/config" description="the sensor kit's calibration directory, as tier4_vehicle_launch takes it"/>
 
   <set_parameter name="use_sim_time" value="true"/>

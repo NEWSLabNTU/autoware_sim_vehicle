@@ -34,19 +34,48 @@ def stamp_s(t):
     return t.sec + t.nanosec * 1e-9
 
 
-def load_spec(vehicle_model, spec_path=None):
-    """The car's spec: `spec_path` when given (a car from another repository), else
-    sim_vehicle_spec's vehicles/<vehicle_model>.yaml."""
+def description_identity(vehicle_model, description_dir=None):
+    """(spec name, body) the vehicle_model's description package was generated for, from its
+    config/spec_hash.yaml (autoware_gen writes `name` and, for a spec with bodies, `body`);
+    (vehicle_model, None) when there is no such package."""
+    import yaml
+
+    if description_dir is None:
+        from ament_index_python.packages import (PackageNotFoundError,
+                                                 get_package_share_directory)
+        try:
+            description_dir = get_package_share_directory(f"{vehicle_model}_description")
+        except PackageNotFoundError:
+            return vehicle_model, None
+    path = os.path.join(description_dir, "config", "spec_hash.yaml")
+    if not os.path.isfile(path):
+        return vehicle_model, None
+    doc = yaml.safe_load(open(path)) or {}
+    return doc.get("name") or vehicle_model, doc.get("body")
+
+
+def load_spec(vehicle_model, spec_path=None, description_dir=None):
+    """The car's spec as the body vehicle_model drives (sim_vehicle_spec's spec.effective):
+    `spec_path` when given (a car from another repository), else sim_vehicle_spec's
+    vehicles/<name>.yaml, the name and the body from the vehicle_model's description package
+    (tesla_model3_carla_1_0 is tesla_model3 on its carla-1.0 body). A spec with bodies and
+    no body named is its default body."""
     from sim_vehicle_spec import spec as specmod
 
+    name, body = description_identity(vehicle_model, description_dir)
     if spec_path:
         if not os.path.isfile(spec_path):
             raise FileNotFoundError(f"vehicle spec {spec_path}: no such file")
-        return specmod.load(spec_path)
-    from ament_index_python.packages import get_package_share_directory
+        spec = specmod.load(spec_path)
+    else:
+        from ament_index_python.packages import get_package_share_directory
 
-    share = get_package_share_directory("sim_vehicle_spec")
-    return specmod.load(f"{share}/vehicles/{vehicle_model}.yaml")
+        share = get_package_share_directory("sim_vehicle_spec")
+        spec = specmod.load(f"{share}/vehicles/{name}.yaml")
+    bodies = specmod.bodies(spec)
+    if body is None and bodies:
+        body = bodies[0]
+    return specmod.effective(spec, body)
 
 
 class Check(Node):

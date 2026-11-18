@@ -36,7 +36,7 @@ just check                       # check-generated, the tests, and the profile's
 |---|---|
 | `<name>_description/config/vehicle_info.param.yaml` | the spec's `geometry`, as is |
 | `<name>_description/config/mirror.param.yaml` | the spec's `mirror` |
-| `<name>_description/config/spec_hash.yaml` | `spec_hash` and `name`: what the vehicle agent reports when it registers with a scenario's relay |
+| `<name>_description/config/spec_hash.yaml` | `spec_hash`, `name` and, for a spec with bodies, `body`: what the vehicle agent reports when it registers with a scenario's relay |
 | `<name>_description/config/accel_map.csv`, `brake_map.csv`, `pedal_maps.yaml` | measured, not generated ("The pedal maps") |
 | `<name>_description/urdf/vehicle.xacro` | template: `base_link` and an RViz box from `vehicle_info` |
 | `<name>_launch/launch/vehicle_interface.launch.xml` | template: empty. The simulator's vehicle bridge is the interface |
@@ -51,6 +51,24 @@ computed file starts with a header naming its spec and `spec_hash`. Autoware sel
 with `vehicle_model:=<name> sensor_model:=<name>_sensor_kit`. `just check-generated` fails,
 naming the file, when a generated file differs from what the spec gives.
 
+### One car on several bodies
+
+A simulator drives a body, an asset with its own dimensions. A spec with `bodies` describes the
+real car and each simulator's body (sim_vehicle_spec's spec format), and Autoware must plan
+with the body it drives. Autoware reads `<vehicle_model>_description/config/vehicle_info.param.yaml`
+in several places that take no other argument (its global parameters, the vehicle URDF, the
+pointcloud preprocessor), so each body is a `vehicle_model` of its own. The spec's first body is
+`<name>`, as above; another body `<b>` gets `<name>_<b>_description` and `<name>_<b>_launch`
+(`<b>` with `_` for every character other than a letter or a digit), with that body's
+`vehicle_info`, RViz box and pedal maps. The sensor kit is the car's on every body.
+
+| `vehicle_model` | `sensor_model` | body | simulator |
+|---|---|---|---|
+| `tesla_model3` | `tesla_model3_sensor_kit` | `carla-0.9.16`: CARLA 0.9.16's `vehicle.tesla.model3`, 3.005 m wheel base | CARLA 0.9.16, Isaac Sim |
+| `tesla_model3_carla_1_0` | `tesla_model3_sensor_kit` | `carla-1.0`: CARLA 1.0's `vehicle.tesla.model3`, the real car's 2.876 m | CARLA 1.0 |
+
+scensim picks both from the CARLA server's version; started by hand, pass both.
+
 ### The pedal maps
 
 `accel_map.csv` and `brake_map.csv` are Autoware's pedal maps for the car, read by
@@ -59,7 +77,8 @@ with the spec's physics (acb's `scripts/build_longitudinal_maps.py`), not genera
 `pedal_maps.yaml` beside them records what they were measured on:
 
 ```yaml
-measured_on: spec         # or blueprint: CARLA's own physics, for a spec without carla.physics
+measured_on: spec         # or blueprint: CARLA's own physics, for a spec without carla.physics;
+                          # or provisional: another body's maps, until this body's are measured
 physics_hash: 33635ad5... # sim_vehicle_spec's physics_hash of the spec they were measured on
 basis: "vehicle.tesla.model3, CARLA tick 0.050 s, ..."
 ```
@@ -68,7 +87,10 @@ basis: "vehicle.tesla.model3, CARLA tick 0.050 s, ..."
 when the spec has `carla.physics` and the recorded `physics_hash` is not the spec's (re-measure
 them), or when the spec has no `carla.physics` and the maps were not measured on the
 blueprint. `physics_hash` covers only what drives the car, so moving a sensor does not
-invalidate the maps.
+invalidate the maps. Each body has its own maps and its own `physics_hash`. A body other than
+the first may carry `measured_on: provisional`, with `copied_from` (the body whose maps they
+are) and a `reason`, and no `physics_hash`, until its own are measured:
+`tesla_model3_carla_1_0`'s are the `carla-0.9.16` body's for now.
 
 ## The profile
 

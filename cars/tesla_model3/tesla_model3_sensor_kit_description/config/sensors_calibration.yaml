@@ -1,4 +1,4 @@
-# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 01b4d3f5273572098cee2052d1c0affe8aeded8d3c71ae2b27a57c350cbcb9f1) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash dffb1d3df1f4ae564235a87c84c1a5a4b402f4d41d265186976561b96d31273c) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
 # base_link -> sensor_kit_base_link (the kit's mount).
 base_link:
   sensor_kit_base_link:

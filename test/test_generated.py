@@ -21,6 +21,38 @@ def test_the_model3_is_the_measured_car():
         assert line in info, line
 
 
+def test_the_carla_1_0_body_is_its_own_vehicle_model():
+    # Autoware reads <vehicle_model>_description's vehicle_info in places no argument reaches
+    d = ROOT / "cars/tesla_model3/tesla_model3_carla_1_0_description"
+    info = (d / "config/vehicle_info.param.yaml").read_text()
+    for line in ("wheel_base: 2.876", "wheel_radius: 0.336", "wheel_tread: 1.58",
+                 "front_overhang: 0.841", "vehicle_height: 1.443"):
+        assert line in info, line
+    ident = (d / "config/spec_hash.yaml").read_text()
+    assert "name: tesla_model3\n" in ident and "body: carla-1.0\n" in ident
+    assert "<name>tesla_model3_carla_1_0_description</name>" in (d / "package.xml").read_text()
+    assert (ROOT / "cars/tesla_model3/tesla_model3_carla_1_0_launch/package.xml").is_file()
+    # one sensor kit for the car, on every body
+    assert not list((ROOT / "cars/tesla_model3").glob("*carla_1_0_sensor_kit*"))
+
+
+def test_provisional_maps_claim_no_physics_hash(tmp_path):
+    import shutil
+    sys.path.insert(0, str(ROOT))
+    from autoware_gen.__main__ import pedal_maps_problem, specmod
+    spec = specmod.effective(specmod.load(
+        ROOT / "deps/sim_vehicle_spec/vehicles/tesla_model3.yaml"), "carla-1.0")
+    car = "tesla_model3_carla_1_0"
+    src = ROOT / f"cars/tesla_model3/{car}_description/config"
+    dst = tmp_path / f"cars/tesla_model3/{car}_description/config"
+    shutil.copytree(src, dst)
+    assert pedal_maps_problem(spec, tmp_path, car, default=False) is None
+    assert "default body" in pedal_maps_problem(spec, tmp_path, car, default=True)
+    meta = dst / "pedal_maps.yaml"
+    meta.write_text(meta.read_text() + "physics_hash: x\n")
+    assert "claims no physics_hash" in pedal_maps_problem(spec, tmp_path, car, default=False)
+
+
 def test_the_robot_description_survives_ros2_launch():
     # `ros2 launch` (Humble) tries every parameter value as YAML first; xacro keeps the
     # comments inside the robot, and one ": " in them makes that parse throw, so the ego

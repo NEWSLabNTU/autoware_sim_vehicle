@@ -15,10 +15,20 @@ MODEL3 = ROOT / "deps/sim_vehicle_spec/vehicles/tesla_model3.yaml"
 def test_a_spec_path_is_read_without_the_package_index(tmp_path):
     spec = tmp_path / "my_car.yaml"
     spec.write_text(MODEL3.read_text())
-    s = load_spec("not_in_sim_vehicle_spec", spec_path=str(spec))
+    s = load_spec("not_in_sim_vehicle_spec", spec_path=str(spec), description_dir=str(tmp_path))
     assert s.doc["name"] == "tesla_model3"
+    assert s.body == "carla-0.9.16"  # the default body
+
+
+def test_a_body_package_names_its_body():
+    # tesla_model3_carla_1_0 is tesla_model3 on its carla-1.0 body (autoware_gen's spec_hash.yaml)
+    desc = ROOT / "cars/tesla_model3/tesla_model3_carla_1_0_description"
+    s = load_spec("tesla_model3_carla_1_0", spec_path=str(MODEL3), description_dir=str(desc))
+    assert s.body == "carla-1.0"
+    assert s.doc["geometry"]["wheel_base"] == 2.876
 
 
 def test_a_missing_spec_path_is_an_error(tmp_path):
     with pytest.raises(FileNotFoundError):
-        load_spec("tesla_model3", spec_path=str(tmp_path / "absent.yaml"))
+        load_spec("tesla_model3", spec_path=str(tmp_path / "absent.yaml"),
+                  description_dir=str(tmp_path))

@@ -161,8 +161,8 @@ play_launch launch autoware_sim_check vehicle_check.launch.xml simulator:=carla 
 
 | argument | default | |
 |---|---|---|
-| `vehicle_model` | `tesla_model3` | the spec, and `<vehicle_model>_description` |
-| `sensor_model` | `<vehicle_model>_sensor_kit` | |
+| `vehicle_model` | `tesla_model3` | `<vehicle_model>_description`, and the spec and body it names (`config/spec_hash.yaml`): `tesla_model3_carla_1_0` is the Model 3 on CARLA 1.0's body |
+| `sensor_model` | `<vehicle_model>_sensor_kit` | the car's sensor kit: pass `tesla_model3_sensor_kit` with `tesla_model3_carla_1_0` |
 | `simulator` | `any` | `carla`, `isaac` or `any`: which of the spec's sensors the vehicle side publishes |
 | `what` | `all` | `contract`, `dynamics` or `all` (the contract, then the dynamics) |
 | `listen` | `10.0` | seconds of simulation time the contract listens |

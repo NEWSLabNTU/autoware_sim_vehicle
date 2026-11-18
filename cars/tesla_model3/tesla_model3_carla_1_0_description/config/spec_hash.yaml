@@ -1,0 +1,4 @@
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash dffb1d3df1f4ae564235a87c84c1a5a4b402f4d41d265186976561b96d31273c) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+spec_hash: dffb1d3df1f4ae564235a87c84c1a5a4b402f4d41d265186976561b96d31273c
+name: tesla_model3
+body: carla-1.0
