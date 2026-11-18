@@ -21,5 +21,6 @@
 
   <export>
     <build_type>ament_cmake</build_type>
+    <scensim_autoware supported="1.5.0..2.1.0" tested="1.5.0/humble 2.0.0/humble 2.1.0/humble"/>
   </export>
 </package>
