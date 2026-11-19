@@ -235,7 +235,8 @@
        description="the velocity smoother's parameter file; upstream's (a 1.0 m/s^2 lateral limit in bends) by default"/>
   <!-- Autoware's deprecated (tier4) API, which autoware_launch turns on only for
        scenario_simulation. The vehicle agent needs /api/autoware/set/velocity_limit from it
-       (served by autoware_iv_internal_api_adaptor) for a scenario's absolute SpeedAction:
+       (served by autoware_iv_internal_api_adaptor; on 2.x by the evaluation adapter, which
+       the 2.x file starts through scenario_simulation) for a scenario's absolute SpeedAction:
        without it set_speed_limit fails and SSv2 aborts the scenario. Passed to
        autoware.launch.xml, so a user's own autoware.launch.xml gets it too. -->
   <arg name="launch_deprecated_api" default="true" description="tier4 deprecated API (velocity limit for scenarios)"/>

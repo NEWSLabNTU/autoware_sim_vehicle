@@ -50,6 +50,9 @@
       <arg name="launch_sensing_driver" value="$(var launch_sensing_driver)"/>
       <arg name="traffic_light_recognition/use_high_accuracy_detection" value="false"/>
       <arg name="launch_deprecated_api" value="$(var launch_deprecated_api)"/>
+      <!-- 2.x has no deprecated API: its evaluation adapter serves the velocity limit, and
+           autoware_launch starts it only for scenario_simulation -->
+      <arg name="scenario_simulation" value="$(var launch_deprecated_api)"/>
       <arg name="rviz" value="$(var rviz)"/>
       <arg name="rviz_config" value="$(var rviz_config)"/>
     </include>
