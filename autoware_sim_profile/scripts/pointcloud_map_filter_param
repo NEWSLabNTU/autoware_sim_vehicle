@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Print the compare-map filter's parameter file for a map: dynamic map loading for a divided
+map, static loading otherwise.
+
+    pointcloud_map_filter_param <map_path> <static param file> <dynamic param file>
+    pointcloud_map_filter_param --mode <map_path>
+
+Detection's compare-map filter removes the map's own points from the obstacle cloud. The
+profile loads the map statically (acb issue 029: with dynamic loading, a street lamp at
+Town01's spawn point 0 held the ego), which builds one voxel grid over the whole map; a map
+too large for that grid (scensim issue 072: Haruna's mountain, 907 x 1215 x 370 m) overflows
+it, the filter removes nothing, and static points stop the car. A divided map
+(`pointcloud_map.pcd` a directory of tiles, listed in `pointcloud_map_metadata.yaml`) is
+filtered with dynamic loading, the tiles near the car; a map of one PCD file (every CARLA
+town, whose metadata lists that one file) keeps static loading, as before.
+
+The choice is derived from the map, not configured. Run by a $(command) substitution while
+the launch resolves: prints the path (or, with --mode, the mode and why) with no newline and
+nothing on stderr; exits 2 on bad arguments.
+"""
+
+import os
+import sys
+
+TILES = "pointcloud_map.pcd"
+METADATA = "pointcloud_map_metadata.yaml"
+
+
+def divided(map_path):
+    """The number of tiles when `map_path` holds a divided map, else 0."""
+    tiles = os.path.join(map_path, TILES)
+    if not (os.path.isdir(tiles) and os.path.isfile(os.path.join(map_path, METADATA))):
+        return 0
+    return sum(1 for f in os.listdir(tiles) if f.endswith(".pcd"))
+
+
+def mode(map_path):
+    n = divided(map_path)
+    if n:
+        return ("dynamic", f"a divided map, {n} tiles in {os.path.join(map_path, TILES)}")
+    return ("static", f"one point cloud file ({os.path.join(map_path, TILES)})")
+
+
+def main(argv):
+    if len(argv) == 2 and argv[0] == "--mode":
+        m, why = mode(argv[1])
+        sys.stdout.write(f"compare-map filter: {m} map loading, {why}")
+        return 0
+    if len(argv) != 3:
+        sys.stdout.write(__doc__.splitlines()[0])
+        return 2
+    map_path, static, dynamic = argv
+    sys.stdout.write(dynamic if mode(map_path)[0] == "dynamic" else static)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -501,3 +501,71 @@ def test_release_2_1_0_takes_upstreams_prediction_parameters():
         pytest.skip(f"no Autoware 2.1.0 at {up}")
     assert set(params(yaml.safe_load(up.read_text()))["lane_change_path_suppression"]) == {
         "enable", "keep_when_lane_ends", "lane_end_rescue_time_horizon"}
+
+
+# --- the compare-map filter's loading, by the map (scensim issue 072) ---------------------------
+
+FILTER = PROFILE / "scripts/pointcloud_map_filter_param"
+
+
+def map_filter_param(*args):
+    out = subprocess.run([sys.executable, str(FILTER), *map(str, args)],
+                         capture_output=True, text=True)
+    return out.returncode, out.stdout, out.stderr
+
+
+def test_a_divided_map_gets_dynamic_loading_and_one_pcd_keeps_static(tmp_path):
+    town = tmp_path / "Town01"   # every CARLA town: one PCD, and a metadata naming that file
+    town.mkdir()
+    (town / "pointcloud_map.pcd").write_bytes(b"")
+    (town / "pointcloud_map_metadata.yaml").write_text(
+        "x_resolution: 1000.0\ny_resolution: 1000.0\npointcloud_map.pcd: [-400, -400]\n")
+    bare = tmp_path / "bare"     # one PCD, no metadata
+    bare.mkdir()
+    (bare / "pointcloud_map.pcd").write_bytes(b"")
+    tiles_only = tmp_path / "tiles_only"   # tiles without their metadata: not a divided map
+    (tiles_only / "pointcloud_map.pcd").mkdir(parents=True)
+    (tiles_only / "pointcloud_map.pcd" / "a_0_0.pcd").write_bytes(b"")
+    course = tmp_path / "haruna"  # divided: a directory of tiles and their metadata
+    (course / "pointcloud_map.pcd").mkdir(parents=True)
+    for name in ("haruna_0_0.pcd", "haruna_0_1.pcd"):
+        (course / "pointcloud_map.pcd" / name).write_bytes(b"")
+    (course / "pointcloud_map_metadata.yaml").write_text(
+        "x_resolution: 100.0\ny_resolution: 100.0\nharuna_0_0.pcd: [0, 0]\nharuna_0_1.pcd: [0, 100]\n")
+    for m in (town, bare, tiles_only, tmp_path / "missing"):
+        assert map_filter_param(m, "/static.yaml", "/dynamic.yaml") == (0, "/static.yaml", "")
+        code, out, err = map_filter_param("--mode", m)
+        assert code == 0 and out.startswith("compare-map filter: static map loading") and not err
+    assert map_filter_param(course, "/static.yaml", "/dynamic.yaml") == (0, "/dynamic.yaml", "")
+    code, out, err = map_filter_param("--mode", course)
+    assert code == 0 and not err
+    assert out.startswith("compare-map filter: dynamic map loading, a divided map, 2 tiles")
+    assert map_filter_param(course)[0] == 2
+
+
+def test_the_launch_picks_the_compare_map_filter_by_the_map():
+    """Both releases' perception take the compare-map filter's file from the script, and say
+    which loading it chose; the component passes it through (sync_perception_component.sh)."""
+    cmd = "$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param"
+    rel = "perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml"
+    launch = (PROFILE / LAUNCH).read_text()
+    assert f"<log message=\"$(command '{cmd} --mode $(var map_path)')\"/>" in launch
+    assert (f"value=\"$(command '{cmd} $(var map_path) $(find-pkg-share autoware_sim_profile)/config/"
+            f"{rel} $(find-pkg-share autoware_launch)/config/{rel}')\"/>") in launch
+    component = (PROFILE / "launch/components/tier4_perception_component.launch.xml").read_text()
+    assert ("<arg name=\"pointcloud_map_filter_param_path\" default=\"$(find-pkg-share "
+            f"autoware_sim_profile)/config/{rel}\"") in component
+    assert 'value="$(var pointcloud_map_filter_param_path)"' in component
+    v2 = (PROFILE / "launch/autoware-2.0.0.launch.xml").read_text()
+    assert f"<log message=\"$(command '{cmd} --mode $(var map_path)')\"/>" in v2
+    assert "$(find-pkg-share autoware_perception_config)/config/object_recognition/detection/" in v2
+    # the profile's own files stay static (acb issue 029); upstream's are the dynamic ones
+    static15 = yaml.safe_load((PROFILE / "config" / rel).read_text())
+    assert static15["/**"]["ros__parameters"]["use_dynamic_map_loading"] is False
+    up15 = UPSTREAM / "config" / rel
+    if up15.is_file():
+        assert yaml.safe_load(up15.read_text())["/**"]["ros__parameters"]["use_dynamic_map_loading"]
+    up2 = Path("/opt/autoware/2.1.0/share/autoware_perception_config/config/object_recognition/"
+               "detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml")
+    if up2.is_file():
+        assert yaml.safe_load(up2.read_text())["/**"]["ros__parameters"]["use_dynamic_map_loading"]

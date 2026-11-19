@@ -12,6 +12,9 @@ install(PROGRAMS scripts/setup_autoware_data DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/planning_common_param DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/clock_guard DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/check_launch_args DESTINATION lib/${PROJECT_NAME})
+# The compare-map filter's parameter file for a map: dynamic loading for a divided map, static
+# otherwise (scensim issue 072), run by a $(command) substitution (see the script's header).
+install(PROGRAMS scripts/pointcloud_map_filter_param DESTINATION lib/${PROJECT_NAME})
 
 ament_auto_package(INSTALL_TO_SHARE
   launch

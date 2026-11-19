@@ -378,7 +378,13 @@
     <!-- autoware_sim_profile's copy of autoware_launch's component (scripts/sync_perception_component.sh;
          run it with check after an Autoware upgrade): identical except that
          traffic_light_recognition/fusion_only is an argument, which upstream hard-codes. -->
+    <!-- the compare-map filter's loading, by the map (scensim issue 072): dynamic for a divided
+         map (pointcloud_map.pcd a directory of tiles, pointcloud_map_metadata.yaml), upstream's
+         file; static otherwise (acb issue 029), the profile's -->
+    <log message="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --mode $(var map_path)')"/>
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_perception_component.launch.xml">
+      <arg name="pointcloud_map_filter_param_path"
+           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param $(var map_path) $(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml $(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml')"/>
       <arg name="object_recognition" value="$(eval &quot;'$(var perception)' == 'true' and '$(var publish_ground_truth_objects)' != 'true'&quot;)"/>
       <arg name="traffic_light_recognition/fusion_only" value="$(var traffic_light_fusion_only)"/>
       <arg name="data_path" value="$(var data_path)"/>
