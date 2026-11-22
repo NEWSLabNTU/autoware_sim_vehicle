@@ -3,5 +3,10 @@
 # Autoware's raw_vehicle_cmd_converter. Measured, not generated: what they were measured
 # against is recorded here and checked by `just check-generated`.
 measured_on: spec
-physics_hash: 33635ad5c8611570ffbb9a00b495df5bdc1be06f8f6227280a4c34033acdc267
+physics_hash: 47a1043b8cc7f790c2fc2245ae6ffdfe3d5fc4c6aa761cff0f3a30fdadaccf8f
+# physics_hash moved from 33635ad5c861 without a new measurement: sim_vehicle_spec 21bf3dc took the
+# onboard computer (ABS, the slip estimate, ESC, TC, regen slip control) out of physics_hash, which
+# CARLA never runs, and its carla_physics.yaml regenerated identical but for its hash lines
+# (scensim issue 100; sim_vehicle_spec's OnboardComputerTest, on every car and body)
+physics_hash_moved: {from: 33635ad5c8611570ffbb9a00b495df5bdc1be06f8f6227280a4c34033acdc267, by: sim_vehicle_spec 21bf3dc}
 basis: "vehicle.tesla.model3, CARLA tick 0.050 s, physics substeps of 0.0031 s (max 16) -- the timing carla_world uses, 2026-10-23"

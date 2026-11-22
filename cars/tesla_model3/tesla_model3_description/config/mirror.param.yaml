@@ -1,4 +1,4 @@
-# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash dffb1d3df1f4ae564235a87c84c1a5a4b402f4d41d265186976561b96d31273c) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 89cc738fd55929edd0e260121a80bfdde209563d8d7a97648505f557d9685f1e) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
 /**:
   ros__parameters:
     min_longitudinal_offset: 1.8
