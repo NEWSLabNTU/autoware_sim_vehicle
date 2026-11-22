@@ -1,5 +1,6 @@
-"""Autoware's packages for every simulated car Autoware can drive (one with sensors), from its
-vehicle spec (roadmap 051).
+"""Autoware's packages for every simulated car Autoware drives, from its vehicle spec (roadmap
+051). A spec that says `autoware_car: false` (an RL policy's car, scensim 094 P2's MuSHR) gets
+none and is reported skipped; an Autoware car without sensors is refused, naming both.
 
     python3 -m autoware_gen [--specs deps/sim_vehicle_spec/vehicles] [--root .]           # write
     python3 -m autoware_gen ... --check   # exit 1 when an output is stale or a car's pedal maps
@@ -49,19 +50,26 @@ def names(spec):
     return spec.name, f"{spec.name}_sensor_kit"
 
 
-def autoware_car(spec):
-    """Whether Autoware can drive the car: it has sensors. A spec without any (scensim 094 P2's
-    MuSHR, a car driven by an RL policy) gets no Autoware packages and no pedal maps."""
-    return bool((spec.source or spec.doc).get("sensors"))
+class NotAnAutowareCar(ValueError):
+    pass
 
 
-def specs(specs_dir):
-    """The specs Autoware drives, in name order."""
+def specs(specs_dir, skipped=None):
+    """The specs Autoware drives, in name order. A spec with `autoware_car: false` is left out
+    (its name appended to `skipped`); an Autoware car without sensors is refused: Autoware needs
+    them, and a spec that lost them by mistake must not lose its packages in silence."""
     out = []
     for path in sorted(Path(specs_dir).glob("*.yaml")):
         source = specmod.load(path)
-        if autoware_car(source):
-            out.append((path, source))
+        if not specmod.autoware_car(source):
+            if skipped is not None:
+                skipped.append(f"{source.name} ({path.name}: autoware_car: false)")
+            continue
+        if not (source.source or source.doc).get("sensors"):
+            raise NotAnAutowareCar(
+                f"{path.name}: {source.name} is an Autoware car (no autoware_car: false) and has "
+                "no sensors: give it its sensors, or say autoware_car: false")
+        out.append((path, source))
     return out
 
 
@@ -303,7 +311,15 @@ def main(argv=None):
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args(argv)
-    out = outputs(args.specs, args.root)
+    skipped = []
+    try:
+        specs(args.specs, skipped)
+        out = outputs(args.specs, args.root)
+    except NotAnAutowareCar as e:
+        print(f"refused: {e}", file=sys.stderr)
+        return 1
+    for s in skipped:
+        print(f"skipped: {s}, not an Autoware car", file=sys.stderr)
     problems = [f"stale: {p} (run `just generate`)" for p in emit.stale(out, args.root)]
     for path, source in specs(args.specs):
         builds = as_bodies(source)

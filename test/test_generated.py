@@ -71,20 +71,38 @@ def test_the_robot_description_survives_ros2_launch():
             assert ": " not in c, f"{f.relative_to(ROOT)}: comment has ': ': {c.strip()[:60]}"
 
 
-def test_a_car_without_sensors_gets_no_autoware_packages(tmp_path):
-    """A spec with no sensors (scensim 094 P2's MuSHR, an RL policy's car) is not an Autoware
-    car: no packages, no pedal maps asked for; the others' outputs as before."""
+def _specs(tmp_path, **blind):
     import yaml
-    sys.path.insert(0, str(ROOT))
-    from autoware_gen.__main__ import outputs
     specs = ROOT / "deps" / "sim_vehicle_spec" / "vehicles"
     doc = yaml.safe_load((specs / "tesla_model3.yaml").read_text())
     doc["name"] = "blind_car"
     doc.pop("sensors", None)
+    doc.update(blind)
     d = tmp_path / "vehicles"
     d.mkdir()
     (d / "tesla_model3.yaml").write_text((specs / "tesla_model3.yaml").read_text())
     (d / "blind_car.yaml").write_text(yaml.safe_dump(doc))
+    return d
+
+
+def test_a_car_that_says_autoware_car_false_gets_no_packages(tmp_path):
+    """scensim 094 P2's MuSHR: no packages, no pedal maps asked for, reported skipped."""
+    sys.path.insert(0, str(ROOT))
+    from autoware_gen.__main__ import outputs, specs
+    d = _specs(tmp_path, autoware_car=False)
     out = outputs(d, tmp_path)
     assert not any("blind_car" in p for p in out)
     assert any(p.startswith("cars/tesla_model3/") for p in out)
+    skipped = []
+    specs(d, skipped)
+    assert skipped == ["blind_car (blind_car.yaml: autoware_car: false)"]
+
+
+def test_an_autoware_car_without_sensors_is_refused(tmp_path):
+    """No silent loss: a spec that wants Autoware (no autoware_car: false) and has no sensors
+    is refused, naming both."""
+    sys.path.insert(0, str(ROOT))
+    import pytest
+    from autoware_gen.__main__ import NotAnAutowareCar, outputs
+    with pytest.raises(NotAnAutowareCar, match="is an Autoware car .* and has no sensors"):
+        outputs(_specs(tmp_path), tmp_path)
