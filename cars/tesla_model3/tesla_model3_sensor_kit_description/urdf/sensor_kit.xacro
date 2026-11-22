@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 89cc738fd55929edd0e260121a80bfdde209563d8d7a97648505f557d9685f1e) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate. -->
+<!-- Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 4d2bbaff65967b5aeb6f9fd35e0fc9b8b6c575824ad57158c9f9b68db13a5d76) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate. -->
 <robot name="tesla_model3_sensor_kit" xmlns:xacro="http://ros.org/wiki/xacro">
   <!-- The sensor kit's links, each placed from sensor_kit_calibration.yaml under
        config_dir (Autoware's vehicle launch passes the description's config). -->
