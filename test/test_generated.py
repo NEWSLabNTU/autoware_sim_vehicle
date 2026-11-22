@@ -69,3 +69,22 @@ def test_the_robot_description_survives_ros2_launch():
         body = text[text.index("<robot"):]
         for c in re.findall(r"<!--(.*?)-->", body, re.S):
             assert ": " not in c, f"{f.relative_to(ROOT)}: comment has ': ': {c.strip()[:60]}"
+
+
+def test_a_car_without_sensors_gets_no_autoware_packages(tmp_path):
+    """A spec with no sensors (scensim 094 P2's MuSHR, an RL policy's car) is not an Autoware
+    car: no packages, no pedal maps asked for; the others' outputs as before."""
+    import yaml
+    sys.path.insert(0, str(ROOT))
+    from autoware_gen.__main__ import outputs
+    specs = ROOT / "deps" / "sim_vehicle_spec" / "vehicles"
+    doc = yaml.safe_load((specs / "tesla_model3.yaml").read_text())
+    doc["name"] = "blind_car"
+    doc.pop("sensors", None)
+    d = tmp_path / "vehicles"
+    d.mkdir()
+    (d / "tesla_model3.yaml").write_text((specs / "tesla_model3.yaml").read_text())
+    (d / "blind_car.yaml").write_text(yaml.safe_dump(doc))
+    out = outputs(d, tmp_path)
+    assert not any("blind_car" in p for p in out)
+    assert any(p.startswith("cars/tesla_model3/") for p in out)

@@ -1,4 +1,5 @@
-"""Autoware's packages for every simulated car, from its vehicle spec (roadmap 051).
+"""Autoware's packages for every simulated car Autoware can drive (one with sensors), from its
+vehicle spec (roadmap 051).
 
     python3 -m autoware_gen [--specs deps/sim_vehicle_spec/vehicles] [--root .]           # write
     python3 -m autoware_gen ... --check   # exit 1 when an output is stale or a car's pedal maps
@@ -46,6 +47,22 @@ PEDAL_MAPS = ("accel_map.csv", "brake_map.csv")
 
 def names(spec):
     return spec.name, f"{spec.name}_sensor_kit"
+
+
+def autoware_car(spec):
+    """Whether Autoware can drive the car: it has sensors. A spec without any (scensim 094 P2's
+    MuSHR, a car driven by an RL policy) gets no Autoware packages and no pedal maps."""
+    return bool((spec.source or spec.doc).get("sensors"))
+
+
+def specs(specs_dir):
+    """The specs Autoware drives, in name order."""
+    out = []
+    for path in sorted(Path(specs_dir).glob("*.yaml")):
+        source = specmod.load(path)
+        if autoware_car(source):
+            out.append((path, source))
+    return out
 
 
 def as_bodies(spec):
@@ -243,9 +260,7 @@ def pedal_maps_problem(spec, root, car=None, default=True):
 def outputs(specs_dir, root):
     """{path relative to root: content}."""
     out = {}
-    paths = sorted(Path(specs_dir).glob("*.yaml"))
-    for path in paths:
-        source = specmod.load(path)
+    for path, source in specs(specs_dir):
         builds = as_bodies(source)
         spec = builds[0][1]
         name, kit = names(spec)
@@ -290,8 +305,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     out = outputs(args.specs, args.root)
     problems = [f"stale: {p} (run `just generate`)" for p in emit.stale(out, args.root)]
-    for path in sorted(Path(args.specs).glob("*.yaml")):
-        source = specmod.load(path)
+    for path, source in specs(args.specs):
         builds = as_bodies(source)
         for body, e in builds:
             problem = pedal_maps_problem(e, args.root, vehicle_model(source, body, builds[0][0]),
