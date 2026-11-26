@@ -121,6 +121,45 @@ def test_perception_component_passes_the_profile_tracker_params():
     assert (PROFILE / TRACKER).is_file()
 
 
+VALIDATOR = ("config/perception/object_recognition/detection/detected_object_validation/"
+             "obstacle_pointcloud_based_validator.param.yaml")
+
+
+def test_validator_keeps_an_unknown_object_with_more_than_five_points():
+    """scensim issue 181: the obstacle-pointcloud validator's threshold is
+    clamp(round(800 / d), min_points_num, max_points_num). Upstream's 10 and 10 kept a 0.35 m
+    boulder out of the objects until 9.6 m; UNKNOWN's 5 and 5 validate it from about 12.1 m
+    (181 step 4). Both bounds: with the minimum alone at 5, 800 / d is above 10 for every object
+    nearer than 80 m and the clamp still returns the maximum, 10."""
+    p = params(yaml.safe_load(read(VALIDATOR)))
+    assert p["min_points_num"][0] == 5
+    assert p["max_points_num"][0] == 5
+
+
+def test_validator_copy_matches_upstream_but_for_unknowns_points():
+    up, ours = yaml.safe_load(upstream(VALIDATOR).read_text()), yaml.safe_load(read(VALIDATOR))
+    for doc in (up, ours):
+        params(doc)["min_points_num"][0] = None
+        params(doc)["max_points_num"][0] = None
+    assert up == ours, f"{VALIDATOR} drifted from upstream; run scripts/sync_perception_component.sh"
+
+
+def test_perception_component_passes_the_profile_validator_params():
+    """scensim issue 181: the validator reads the file obstacle_pointcloud_based_validator_param_path
+    names, whose default in the profile's launch and in the component is the profile's copy."""
+    profile_path = f"$(find-pkg-share autoware_sim_profile)/{VALIDATOR}"
+    name = "obstacle_pointcloud_based_validator_param_path"
+    launch = read(LAUNCH)
+    assert arg_default(launch, name) == profile_path
+    assert f'<arg name="{name}" value="$(var {name})"/>' in launch
+    component = read("launch/components/tier4_perception_component.launch.xml")
+    assert arg_default(component, name) == profile_path
+    assert ('name="object_recognition_detection_obstacle_pointcloud_based_validator_param_path"\n'
+            f'      value="$(var {name})"') in component
+    assert f"$(find-pkg-share autoware_launch)/{VALIDATOR}" not in component
+    assert (PROFILE / VALIDATOR).is_file()
+
+
 GATE = "config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
 MRM_STOP = "config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml"
 

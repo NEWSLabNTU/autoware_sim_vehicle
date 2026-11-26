@@ -7,7 +7,10 @@
        multi_object_tracker reads the file multi_object_tracker_node_param_path names,
        autoware_sim_profile's node parameters by default (issue 027), and
        detection's compare-map filter the file pointcloud_map_filter_param_path names: the
-       profile's static loading (issue 029), dynamic for a divided map (scensim issue 072). -->
+       profile's static loading (issue 029), dynamic for a divided map (scensim issue 072), and
+       the obstacle-pointcloud validator the file obstacle_pointcloud_based_validator_param_path
+       names: the profile's UNKNOWN threshold 5 by default (scensim issue 181). -->
+  <arg name="obstacle_pointcloud_based_validator_param_path" default="$(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/detected_object_validation/obstacle_pointcloud_based_validator.param.yaml" description="the obstacle-pointcloud validator's parameters (autoware.launch.xml: the profile copy by default)"/>
   <arg name="pointcloud_map_filter_param_path" default="$(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml" description="the compare-map filter's parameters (autoware.launch.xml: pointcloud_map_filter_param, by the map)"/>
   <arg name="multi_object_tracker_node_param_path" default="$(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/tracking/multi_object_tracker/multi_object_tracker_node.param.yaml" description="multi_object_tracker node parameters (autoware.launch.xml: the profile copy by default)"/>
   <arg name="object_recognition" default="true" description="launch object recognition; false when another publisher (acb ground truth) provides objects"/>
@@ -177,7 +180,7 @@
     />
     <arg
       name="object_recognition_detection_obstacle_pointcloud_based_validator_param_path"
-      value="$(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/detected_object_validation/obstacle_pointcloud_based_validator.param.yaml"
+      value="$(var obstacle_pointcloud_based_validator_param_path)"
     />
     <arg
       name="object_recognition_prediction_map_based_prediction_param_path"
