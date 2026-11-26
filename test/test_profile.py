@@ -121,6 +121,55 @@ def test_perception_component_passes_the_profile_tracker_params():
     assert (PROFILE / TRACKER).is_file()
 
 
+GATE = "config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
+MRM_STOP = "config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml"
+
+
+def test_mrm_emergency_stop_brakes_at_minus_six_at_minus_twelve():
+    """Scensim issue 190: the MRM emergency stop brakes at -6.0 m/s^2, reached at -12 m/s^3,
+    upstream's file otherwise (upstream -2.5 at -1.5)."""
+    ours = params(yaml.safe_load(read(MRM_STOP)))
+    assert ours["target_acceleration"] == -6.0 and ours["target_jerk"] == -12.0
+    up = params(yaml.safe_load(upstream(f"config/system/mrm_emergency_stop_operator/"
+                                         "mrm_emergency_stop_operator.param.yaml").read_text()))
+    assert (up["target_acceleration"], up["target_jerk"]) == (-2.5, -1.5)
+    assert {k: v for k, v in ours.items() if not k.startswith("target_")} == \
+        {k: v for k, v in up.items() if not k.startswith("target_")}
+
+
+def test_gate_lets_the_emergency_stop_through_and_is_upstream_otherwise():
+    """Scensim issue 190: the gate filters the emergency command too, so its longitudinal limits
+    below 20 m/s are 6.0 m/s^2 and 12 m/s^3; every other value is upstream's."""
+    ours = params(yaml.safe_load(read(GATE)))
+    up = params(yaml.safe_load(upstream(f"config/control/vehicle_cmd_gate/"
+                                         "vehicle_cmd_gate.param.yaml").read_text()))
+    assert ours["nominal"]["reference_speed_points"] == [0.1, 0.3, 20.0, 30.0]
+    assert ours["nominal"]["lon_acc_lim_for_lon_vel"] == [6.0, 6.0, 6.0, 4.0]
+    assert ours["nominal"]["lon_jerk_lim_for_lon_acc"] == [80.0, 12.0, 12.0, 4.0]
+    assert -ours["nominal"]["lon_acc_lim_for_lon_vel"][2] <= params(
+        yaml.safe_load(read(MRM_STOP)))["target_acceleration"]
+    for doc in (ours, up):
+        for key in ("lon_acc_lim_for_lon_vel", "lon_jerk_lim_for_lon_acc"):
+            del doc["nominal"][key]
+    assert ours == up
+
+
+def test_profile_launch_defaults_the_gate_and_mrm_stop_to_its_copies_on_1_5():
+    """Scensim issue 190: on 1.5.0 both arguments default to the profile's copies, which reach
+    the gate and the system component; on 2.x they stay upstream's."""
+    launch = read(LAUNCH)
+    prof = "$(find-pkg-share autoware_sim_profile)/config"
+    for name, rel in (("vehicle_cmd_gate_param_path", GATE),
+                      ("mrm_emergency_stop_operator_param_path", MRM_STOP)):
+        at = launch.index(f'<arg name="{name}"')
+        default = launch[at:launch.index("/>", at)]
+        assert f"'{prof}/{rel.split('config/', 1)[1]}' if $(var aw15) else " in default
+        assert (PROFILE / rel).is_file()
+    assert '<arg name="gate_param_path" value="$(var vehicle_cmd_gate_param_path)"/>' in launch
+    mrm = '<arg name="mrm_emergency_stop_operator_param_path" value="$(var mrm_emergency_stop_operator_param_path)"/>'
+    assert mrm in launch and mrm in read("launch/autoware-2.0.0.launch.xml")
+
+
 def arg_default(launch, name):
     at = launch.index(f"<arg name=\"{name}\" default=\"")
     rest = launch[at:]

@@ -1,0 +1,10 @@
+# The profile's copy of autoware_launch 1.5.0's config/system/mrm_emergency_stop_operator/
+# mrm_emergency_stop_operator.param.yaml. Only change (scensim issue 190): the emergency stop brakes at
+# -6.0 m/s^2, reached at -12 m/s^3 (upstream -2.5 at -1.5, which a planning validator ERROR selects
+# in place of a controller already braking harder). Production AEB reaches full braking (about
+# -9 m/s^2) in roughly 0.2 to 0.4 s, 20 to 40 m/s^3; -12 is on the gentle side of that.
+/**:
+  ros__parameters:
+    update_rate: 30
+    target_acceleration: -6.0  # scensim issue 190: upstream -2.5
+    target_jerk: -12.0  # scensim issue 190: upstream -1.5; -6.0 from 0 in 0.5 s

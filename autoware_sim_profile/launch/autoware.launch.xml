@@ -221,8 +221,17 @@
   <arg name="intersection_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection.param.yaml"
        description="the behavior velocity planner's intersection module parameter file (occlusion handling, collision margins); upstream's by default (roadmap 074 N5)"/>
   <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s; 4.17 (15 km/h) is upstream's"/>
-  <arg name="vehicle_cmd_gate_param_path" default="$(var up_control_config_dir)/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml"
-       description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); upstream's by default"/>
+  <!-- Scensim issue 190: on 1.5.0 the gate's and the MRM emergency stop's parameter files are the
+       profile's copies by default. The emergency stop brakes at -6.0 m/s^2, reached at -12 m/s^3
+       (upstream -2.5 at -1.5), and the gate's longitudinal limits below 20 m/s are 6.0 m/s^2 and
+       12 m/s^3 (upstream 5.0 and 5.0), since the gate filters the emergency command too. The gate's
+       limits also bound normal driving. On 2.x both stay upstream's. -->
+  <arg name="vehicle_cmd_gate_param_path"
+       default="$(eval &quot;'$(find-pkg-share autoware_sim_profile)/config/control/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml' if $(var aw15) else '$(var up_control_config_dir)/vehicle_cmd_gate/vehicle_cmd_gate.param.yaml'&quot;)"
+       description="the vehicle command gate's parameter file (velocity, acceleration and lateral limits); the profile's on 1.5.0 (scensim issue 190), upstream's on 2.x"/>
+  <arg name="mrm_emergency_stop_operator_param_path"
+       default="$(eval &quot;'$(find-pkg-share autoware_sim_profile)/config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml' if $(var aw15) else '$(find-pkg-share autoware_launch)/config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml'&quot;)"
+       description="the MRM emergency stop operator's parameter file (its target deceleration and jerk); the profile's on 1.5.0 (scensim issue 190), upstream's on 2.x"/>
   <arg name="planning_common_param_base" default="$(var up_planning_config_dir)/scenario_planning/common/common.param.yaml"
        description="the planning common parameter file max_velocity is applied onto (its acceleration and jerk limits); upstream's by default"/>
   <!-- With ndt:=none the default is the same graph without NDT's scan_matching_status, which
@@ -512,7 +521,7 @@
       <arg name="processing_time_checker_param_path" value="$(find-pkg-share autoware_launch)/config/system/processing_time_checker/processing_time_checker.param.yaml"/>
       <arg name="pipeline_latency_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/pipeline_latency_monitor/pipeline_latency_monitor.param.yaml"/>
       <arg name="mrm_comfortable_stop_operator_param_path" value="$(find-pkg-share autoware_launch)/config/system/mrm_comfortable_stop_operator/mrm_comfortable_stop_operator.param.yaml"/>
-      <arg name="mrm_emergency_stop_operator_param_path" value="$(find-pkg-share autoware_launch)/config/system/mrm_emergency_stop_operator/mrm_emergency_stop_operator.param.yaml"/>
+      <arg name="mrm_emergency_stop_operator_param_path" value="$(var mrm_emergency_stop_operator_param_path)"/>
       <arg name="dummy_diag_publisher_param_path" value="$(find-pkg-share autoware_launch)/config/system/diagnostics/dummy_diag_publisher.param.yaml"/>
       <arg name="system_monitor_cpu_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/cpu_monitor.param.yaml"/>
       <arg name="system_monitor_gpu_monitor_param_path" value="$(find-pkg-share autoware_launch)/config/system/system_monitor/gpu_monitor.param.yaml"/>
