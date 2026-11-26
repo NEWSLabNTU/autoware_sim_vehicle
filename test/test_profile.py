@@ -130,7 +130,7 @@ def test_mrm_emergency_stop_brakes_at_minus_six_at_minus_twelve():
     upstream's file otherwise (upstream -2.5 at -1.5)."""
     ours = params(yaml.safe_load(read(MRM_STOP)))
     assert ours["target_acceleration"] == -6.0 and ours["target_jerk"] == -12.0
-    up = params(yaml.safe_load(upstream(f"config/system/mrm_emergency_stop_operator/"
+    up = params(yaml.safe_load(upstream("config/system/mrm_emergency_stop_operator/"
                                          "mrm_emergency_stop_operator.param.yaml").read_text()))
     assert (up["target_acceleration"], up["target_jerk"]) == (-2.5, -1.5)
     assert {k: v for k, v in ours.items() if not k.startswith("target_")} == \
@@ -141,7 +141,7 @@ def test_gate_lets_the_emergency_stop_through_and_is_upstream_otherwise():
     """Scensim issue 190: the gate filters the emergency command too, so its longitudinal limits
     below 20 m/s are 6.0 m/s^2 and 12 m/s^3; every other value is upstream's."""
     ours = params(yaml.safe_load(read(GATE)))
-    up = params(yaml.safe_load(upstream(f"config/control/vehicle_cmd_gate/"
+    up = params(yaml.safe_load(upstream("config/control/vehicle_cmd_gate/"
                                          "vehicle_cmd_gate.param.yaml").read_text()))
     assert ours["nominal"]["reference_speed_points"] == [0.1, 0.3, 20.0, 30.0]
     assert ours["nominal"]["lon_acc_lim_for_lon_vel"] == [6.0, 6.0, 6.0, 4.0]
