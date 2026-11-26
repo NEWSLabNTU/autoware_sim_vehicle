@@ -137,6 +137,11 @@
        centerpoint/centerpoint_tiny keeps tiny. -->
   <let name="lidar_detector"
        value="$(eval &quot;'centerpoint/centerpoint' if '$(var lidar_detection_model)' == 'centerpoint' else '$(var lidar_detection_model)'&quot;)"/>
+  <!-- multi_object_tracker's node parameters (scensim issue 190): the profile's copy by default
+       (issue 027), the same file as before this argument; a testbench points it at another to
+       measure a tracker setting. Autoware 1.5.0 only: 2.0.0 has its own. -->
+  <arg name="multi_object_tracker_node_param_path" default="$(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/tracking/multi_object_tracker/multi_object_tracker_node.param.yaml"
+       description="multi_object_tracker's node parameter file; the profile's copy by default (Autoware 1.5.0)"/>
   <!-- Issue 028. true (Autoware 1.5's default): the multi-channel tracker takes the DNN's
        objects and detection_by_tracker only, so with centerpoint an object CenterPoint has
        not classified (clustering's UNKNOWN) never reaches planning. false: Autoware's lidar
@@ -394,6 +399,7 @@
       <arg name="lidar_detection_model" value="$(var lidar_detector)"/>
       <arg name="occupancy_grid_map_method" value="$(var occupancy_grid_map_method)"/>
       <arg name="use_multi_channel_tracker_merger" value="$(var use_multi_channel_tracker_merger)"/>
+      <arg name="multi_object_tracker_node_param_path" value="$(var multi_object_tracker_node_param_path)"/>
       <!-- The component reads $(var perception_mode) without declaring it; when
            autoware.launch.xml includes it the parent's declaration leaks in. -->
       <arg name="perception_mode" value="lidar"/>

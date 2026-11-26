@@ -104,9 +104,21 @@ def test_tracker_copy_matches_upstream_but_for_unknown_giou():
 
 
 def test_perception_component_passes_the_profile_tracker_params():
+    """Issue 027, and scensim issue 190: the tracker reads the file
+    multi_object_tracker_node_param_path names, whose default in the profile's launch and in the
+    component is the profile's copy, byte for byte the path the component passed before the
+    argument existed. A run that does not set it reads the same file."""
+    profile_path = f"$(find-pkg-share autoware_sim_profile)/{TRACKER}"
+    name = "multi_object_tracker_node_param_path"
+    launch = read(LAUNCH)
+    assert arg_default(launch, name) == profile_path
+    assert f'<arg name="{name}" value="$(var {name})"/>' in launch
     component = read("launch/components/tier4_perception_component.launch.xml")
-    assert f"value=\"$(find-pkg-share autoware_sim_profile)/{TRACKER}\"" in component
+    assert arg_default(component, name) == profile_path
+    assert ('name="object_recognition_tracking_multi_object_tracker_node_param_path"\n'
+            f'      value="$(var {name})"') in component
     assert f"$(find-pkg-share autoware_launch)/{TRACKER}" not in component
+    assert (PROFILE / TRACKER).is_file()
 
 
 def arg_default(launch, name):
