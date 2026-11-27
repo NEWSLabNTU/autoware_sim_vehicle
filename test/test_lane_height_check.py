@@ -387,3 +387,25 @@ def test_connected_cells_are_labelled_with_8_connectivity():
     assert lab[3, 3] == lab[3, 4] == lab[4, 4] != lab[0, 0]
     assert lab[0, 5] not in (0, lab[0, 0], lab[3, 3])
     assert (lab[~g] == 0).all()
+
+
+def test_the_lanes_raster_agrees_with_the_exact_polygon_away_from_its_edges():
+    """Lanes rasterises each lanelet once (CELL_LANE cells), so a frame is a table lookup: it
+    must agree with the exact test except within a cell of an edge, where it counts inside."""
+    a = np.radians(np.arange(0, 181, 3))
+    left = np.c_[30 * np.cos(a), 30 * np.sin(a)]
+    right = np.c_[26.5 * np.cos(a), 26.5 * np.sin(a)]
+    poly = np.r_[left, right[::-1]]
+    lanes = L.Lanes([poly])
+    rng = np.random.default_rng(180)
+    pts = rng.uniform([-32, -2], [32, 32], size=(40000, 2))
+    exact = L.inside_polygon(poly, pts)
+    got = lanes.contains(pts)
+    r = np.hypot(pts[:, 0], pts[:, 1])
+    near_edge = (np.abs(r - 26.5) < 1.5 * L.CELL_LANE) | (np.abs(r - 30.0) < 1.5 * L.CELL_LANE) \
+        | (np.abs(pts[:, 1]) < 1.5 * L.CELL_LANE)
+    assert (got[~near_edge] == exact[~near_edge]).all()
+    assert (got | ~exact).all()                     # everything inside stays inside
+    on = np.c_[28.25 * np.cos(a[1:-1]), 28.25 * np.sin(a[1:-1])]
+    assert lanes.contains(on).all()
+    assert lanes.contains(left[5:10]).all() and lanes.contains(right[5:10]).all()
