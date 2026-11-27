@@ -312,3 +312,78 @@ def test_the_argument_check_refuses_what_lane_height_check_cannot_do():
     assert len(p) == 1 and "Autoware 1.5.0" in p[0]
     p = m.problems(["lane_height_check:=true", "obstacle_stop_param_path:=/x.yaml"])
     assert len(p) == 1 and "obstacle_stop_param_path" in p[0]
+
+
+# --- numpy only (scensim issue 180: apt's matplotlib and scipy break under a user-site numpy 2) --
+
+def test_the_node_imports_neither_matplotlib_nor_scipy(tmp_path):
+    """On a host whose ~/.local numpy 2.x shadows the system's 1.21, apt's matplotlib and scipy
+    fail to import (243's gate on dc3f67f4); the node runs on numpy alone."""
+    import subprocess
+    import sys
+    straight_map(tmp_path)
+    code = (
+        "import importlib.machinery, importlib.util, sys\n"
+        f"loader = importlib.machinery.SourceFileLoader('lhc', {str(PROFILE / 'scripts' / 'lane_height_check')!r})\n"
+        "m = importlib.util.module_from_spec(importlib.util.spec_from_loader('lhc', loader))\n"
+        "loader.exec_module(m)\n"
+        "s = m.Settings.from_vehicle({'wheel_base': 3.0, 'front_overhang': 0.8, 'rear_overhang': 1.0,"
+        " 'wheel_tread': 1.6, 'left_overhang': 0.25, 'right_overhang': 0.25}, 0.138)\n"
+        f"c = m.LaneHeightCheck({str(tmp_path)!r}, s)\n"
+        "import numpy as np\n"
+        "p = c.obstacle_points(np.array([[15.0, 1.0, 0.2]] * 5), (0.0, 0.0, 0.0, 0.0))\n"
+        "m.detections(p); m.Persistence().update(m.detections(p))\n"
+        "bad = sorted(k for k in sys.modules if k.split('.')[0] in ('matplotlib', 'scipy'))\n"
+        "print(','.join(bad))\n")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "", out.stdout
+
+
+def test_point_in_polygon_counts_edges_and_vertices_as_inside():
+    """Adjacent lanelets share an edge: a point on it is on the carriageway either way."""
+    sq = np.array([[0.0, 0.0], [4.0, 0.0], [4.0, 2.0], [0.0, 2.0]])
+    pts = np.array([[2.0, 1.0], [5.0, 1.0], [-0.1, 1.0], [2.0, 2.1],
+                    [0.0, 1.0], [4.0, 1.0], [2.0, 0.0], [2.0, 2.0],      # on the edges
+                    [0.0, 0.0], [4.0, 2.0]])                             # on vertices
+    assert L.inside_polygon(sq, pts).tolist() == [True, False, False, False,
+                                                  True, True, True, True, True, True]
+
+
+def test_point_in_polygon_on_a_concave_and_a_winding_polygon():
+    # an L (concave), and the same listed clockwise: the even-odd rule is orientation-free
+    ell = np.array([[0.0, 0.0], [3.0, 0.0], [3.0, 1.0], [1.0, 1.0], [1.0, 3.0], [0.0, 3.0]])
+    pts = np.array([[0.5, 2.5], [2.0, 0.5], [2.0, 2.0], [0.5, 0.5], [1.0 + 1e-6, 2.0]])
+    want = [True, True, False, True, False]
+    assert L.inside_polygon(ell, pts).tolist() == want
+    assert L.inside_polygon(ell[::-1], pts).tolist() == want
+    # a ray through a vertex (y = 1, the L's reflex corner) is counted once
+    assert L.inside_polygon(ell, np.array([[0.5, 1.0], [2.0, 1.0], [-1.0, 1.0]])).tolist() == \
+        [True, True, False]
+
+
+def test_the_disc_max_filter_matches_a_brute_force_one():
+    rng = np.random.default_rng(180)
+    top = np.where(rng.random((40, 30)) < 0.3, rng.normal(size=(40, 30)), -np.inf)
+    got = L.disc_max(top, 3)
+    want = np.full_like(top, -np.inf)
+    for i in range(top.shape[0]):
+        for j in range(top.shape[1]):
+            for di in range(-3, 4):
+                for dj in range(-3, 4):
+                    if di * di + dj * dj <= 9 and 0 <= i + di < 40 and 0 <= j + dj < 30:
+                        want[i, j] = max(want[i, j], top[i + di, j + dj])
+    assert np.array_equal(got, want)
+
+
+def test_connected_cells_are_labelled_with_8_connectivity():
+    g = np.zeros((6, 6), bool)
+    g[0, 0] = g[1, 1] = True               # diagonal: one group
+    g[3, 3] = g[3, 4] = g[4, 4] = True     # an L: one group
+    g[0, 5] = True                         # alone
+    lab, n = L.label8(g)
+    assert n == 3
+    assert lab[0, 0] == lab[1, 1] != 0
+    assert lab[3, 3] == lab[3, 4] == lab[4, 4] != lab[0, 0]
+    assert lab[0, 5] not in (0, lab[0, 0], lab[3, 3])
+    assert (lab[~g] == 0).all()
