@@ -76,8 +76,7 @@ class Lanes:
     """The road lanelets' polygons (left bound, then the right bound reversed)."""
 
     def __init__(self, polygons):
-        from matplotlib.path import Path
-        self.paths = [Path(p) for p in polygons]
+        self.paths = [np.asarray(p, float) for p in polygons]
         self.boxes = np.array([[p[:, 0].min(), p[:, 1].min(), p[:, 0].max(), p[:, 1].max()]
                                for p in polygons]) if polygons else np.zeros((0, 4))
 
@@ -108,7 +107,7 @@ class Lanes:
         for path, (x0, y0, x1, y1) in zip(self.paths, self.boxes):
             k = ~inside & (xy[:, 0] >= x0) & (xy[:, 0] <= x1) & (xy[:, 1] >= y0) & (xy[:, 1] <= y1)
             if k.any():
-                inside[np.flatnonzero(k)[path.contains_points(xy[k])]] = True
+                inside[np.flatnonzero(k)[inside_polygon(path, xy[k])]] = True
         return inside
 
     def near(self, xy, pad):
@@ -146,7 +145,6 @@ class Reference:
     highest point per cell, max-filtered by a disc, over the lanes only."""
 
     def __init__(self, pts):
-        from scipy.ndimage import maximum_filter
         if len(pts) == 0:
             self.grid, self.origin = np.full((1, 1), -np.inf), np.zeros(2)
             return
@@ -155,10 +153,7 @@ class Reference:
         shape = ij.max(axis=0) + 3
         top = np.full(shape, -np.inf)
         np.maximum.at(top, (ij[:, 0], ij[:, 1]), pts[:, 2])
-        r = int(math.ceil(REF_RADIUS / REF_CELL))
-        u = np.arange(-r, r + 1)
-        disc = (u[:, None] ** 2 + u[None, :] ** 2) * REF_CELL ** 2 <= REF_RADIUS ** 2 + 1e-9
-        self.grid = maximum_filter(top, footprint=disc, mode="constant", cval=-np.inf)
+        self.grid = disc_max(top, REF_RADIUS / REF_CELL)
 
     def at(self, xy):
         ij = np.floor((xy - self.origin) / REF_CELL).astype(int)
@@ -167,6 +162,84 @@ class Reference:
         out = np.full(len(xy), -np.inf)
         out[ok] = self.grid[ij[ok, 0], ij[ok, 1]]
         return out
+
+
+# --- numpy only (scensim issue 180): apt's matplotlib and scipy fail to import where a
+# user-site numpy 2 shadows the system's 1.21, so the node does without them
+
+BOUNDARY = 1e-9  # m: a point this close to a polygon's edge is on it, so inside
+
+
+def inside_polygon(poly, pts, chunk=4096):
+    """Which `pts` (N x 2) lie in `poly` (M x 2, either orientation, not closed): the even-odd
+    rule by a ray toward +x, with a point on an edge or a vertex inside (adjacent lanelets share
+    edges). Vectorised over points and edges, `chunk` points at a time."""
+    poly = np.asarray(poly, float)
+    pts = np.asarray(pts, float)
+    xi, yi = poly[:, 0], poly[:, 1]
+    q = np.roll(poly, -1, axis=0)
+    xj, yj = q[:, 0], q[:, 1]
+    dx, dy = xj - xi, yj - yi
+    n2 = dx * dx + dy * dy
+    safe_dy = np.where(dy == 0.0, 1.0, dy)
+    safe_n2 = np.where(n2 == 0.0, 1.0, n2)
+    out = np.zeros(len(pts), bool)
+    for k in range(0, len(pts), chunk):
+        px = pts[k:k + chunk, 0:1]
+        py = pts[k:k + chunk, 1:2]
+        # the half-open rule ((yi > py) != (yj > py)) counts a ray through a vertex once
+        crosses = (yi > py) != (yj > py)
+        x_at = xi + (py - yi) * dx / safe_dy
+        inside = (np.count_nonzero(crosses & (px < x_at), axis=1) % 2) == 1
+        # on an edge: within BOUNDARY of the segment
+        t = np.clip(((px - xi) * dx + (py - yi) * dy) / safe_n2, 0.0, 1.0)
+        d2 = (px - (xi + t * dx)) ** 2 + (py - (yi + t * dy)) ** 2
+        out[k:k + chunk] = inside | (d2 <= BOUNDARY * BOUNDARY).any(axis=1)
+    return out
+
+
+def disc_max(grid, radius):
+    """Each cell's maximum over the cells within `radius` cells of it (a disc; out of the grid
+    counts as -inf), by shifted copies."""
+    out = grid.copy()
+    r = int(math.floor(radius + 1e-9))
+    h, w = grid.shape
+    for di in range(-r, r + 1):
+        for dj in range(-r, r + 1):
+            if (di, dj) == (0, 0) or di * di + dj * dj > radius * radius + 1e-9:
+                continue
+            src = grid[max(0, di):h + min(0, di), max(0, dj):w + min(0, dj)]
+            dst = out[max(0, -di):h + min(0, -di), max(0, -dj):w + min(0, -dj)]
+            np.maximum(dst, src, out=dst)
+    return out
+
+
+def label8(mask):
+    """Connected groups of True cells, 8-connected: (labels, count), 0 for False, 1..count."""
+    idx = np.argwhere(mask)
+    lab = np.zeros(mask.shape, int)
+    if len(idx) == 0:
+        return lab, 0
+    parent = list(range(len(idx)))
+    where = {(int(i), int(j)): k for k, (i, j) in enumerate(idx)}
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for k, (i, j) in enumerate(idx):
+        for di, dj in ((-1, -1), (-1, 0), (-1, 1), (0, -1)):
+            o = where.get((int(i) + di, int(j) + dj))
+            if o is not None:
+                ra, rb = find(k), find(o)
+                if ra != rb:
+                    parent[max(ra, rb)] = min(ra, rb)
+    roots = {}
+    for k, (i, j) in enumerate(idx):
+        lab[i, j] = roots.setdefault(find(k), len(roots) + 1)
+    return lab, len(roots)
 
 
 # --- the check -------------------------------------------------------------------------------
@@ -198,7 +271,6 @@ class LaneHeightCheck:
 
 def detections(pts, cell=CELL, min_points=MIN_POINTS):
     """Groups of touching `cell` cells holding at least `min_points` of `pts` (map frame)."""
-    from scipy.ndimage import label
     if len(pts) == 0:
         return []
     ij = np.floor(pts[:, :2] / cell).astype(int)
@@ -206,7 +278,7 @@ def detections(pts, cell=CELL, min_points=MIN_POINTS):
     ij -= lo
     count = np.zeros(ij.max(axis=0) + 1, int)
     np.add.at(count, (ij[:, 0], ij[:, 1]), 1)
-    lab, n = label(count > 0, structure=np.ones((3, 3)))
+    lab, n = label8(count > 0)
     of = lab[ij[:, 0], ij[:, 1]]
     return [pts[of == g] for g in range(1, n + 1) if (of == g).sum() >= min_points]
 

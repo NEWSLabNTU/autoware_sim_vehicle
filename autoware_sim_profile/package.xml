@@ -18,8 +18,6 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
-  <exec_depend>python3-scipy</exec_depend>
-  <exec_depend>python3-matplotlib</exec_depend>
   <!-- the planning trajectory relay -->
   <exec_depend>topic_tools</exec_depend>
   <!-- No release's own launch packages (tier4_*_launch on 1.5.0, autoware_*_launch on 2.0.0):
