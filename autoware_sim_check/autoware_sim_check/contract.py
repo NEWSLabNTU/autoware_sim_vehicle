@@ -22,6 +22,10 @@ SENSOR_TYPES = {
     "imu": "sensor_msgs/msg/Imu",
     "gnss": "sensor_msgs/msg/NavSatFix",
 }
+# A GNSS receiver's heading (dual antenna / INS), which gnss_poser reads on this topic: the
+# vehicle side publishes it beside each fix, at the fix's rate, in the receiver's frame
+# (scensim issue 195 L1b).
+INS_ORIENTATION = ("/autoware_orientation", "autoware_sensing_msgs/msg/GnssInsOrientationStamped")
 # A sensor with no rate in the spec must still reach this.
 DEFAULT_MIN_HZ = 10.0
 # What share of the spec's rate a sensor must reach, on its own stamps.
@@ -68,9 +72,12 @@ def expected(spec, simulator):
            for t, ty, hz, frame in VEHICLE_INTERFACE]
     for name, s in sensors_for(spec, simulator).items():
         hz = s.get("rate_hz")
-        out.append(Expected(s["topic"], SENSOR_TYPES[s["type"]],
-                            RATE_SHARE * hz if hz else DEFAULT_MIN_HZ, s["frame"],
+        min_hz = RATE_SHARE * hz if hz else DEFAULT_MIN_HZ
+        out.append(Expected(s["topic"], SENSOR_TYPES[s["type"]], min_hz, s["frame"],
                             f"sensor {name} ({s['type']})"))
+        if s["type"] == "gnss":
+            out.append(Expected(*INS_ORIENTATION, min_hz, s["frame"],
+                                f"sensor {name} (gnss heading)"))
     return out
 
 

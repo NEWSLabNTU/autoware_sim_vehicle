@@ -106,3 +106,16 @@ def test_an_autoware_car_without_sensors_is_refused(tmp_path):
     from autoware_gen.__main__ import NotAnAutowareCar, outputs
     with pytest.raises(NotAnAutowareCar, match="is an Autoware car .* and has no sensors"):
         outputs(_specs(tmp_path), tmp_path)
+
+
+def test_every_kit_reads_the_receivers_ins_heading():
+    # scensim issue 195 L1b: with use_gnss_ins_orientation false gnss_poser takes its yaw from
+    # the bearing between two fixes, random for a car standing still, and moves the antenna's
+    # 0.8 m lever arm to base_link along it
+    kits = sorted(ROOT.glob("cars/*/*_sensor_kit_launch/launch/gnss.launch.xml"))
+    assert kits
+    for k in [ROOT / "autoware_gen/templates/@KIT@_launch/launch/gnss.launch.xml", *kits]:
+        text = k.read_text()
+        assert '<param name="use_gnss_ins_orientation" value="true"/>' in text, k
+        assert '<remap from="autoware_orientation" to="/autoware_orientation"/>' in text, k
+        assert 'value="false"' not in text, k

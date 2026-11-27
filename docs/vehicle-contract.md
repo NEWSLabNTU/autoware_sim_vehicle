@@ -74,10 +74,15 @@ with `isaac.enabled` true (the default), `any` only the sensors that are in both
 | `camera6` (camera) | `/sensing/camera/camera6/image_raw` | `sensor_msgs/msg/Image` | `camera6/camera_optical_link` | 8 | yes | no |
 | `imu` | `/sensing/imu/imu_link/imu_raw` | `sensor_msgs/msg/Imu` | `imu_link` | 10 | yes | yes |
 | `gnss` | `/sensing/gnss/gnss_link/nav_sat_fix` | `sensor_msgs/msg/NavSatFix` | `gnss_link` | 8 | yes | yes |
+| `gnss` (its heading) | `/autoware_orientation` | `autoware_sensing_msgs/msg/GnssInsOrientationStamped` | `gnss_link` | 8 | yes | yes |
 
 In general: the topic is the sensor's `topic`, the frame its `frame`, the type follows its
 `type` (lidar `PointCloud2`, camera `Image`, imu `Imu`, gnss `NavSatFix`), and the floor is
 0.8 x its `rate_hz`, or 10 Hz when the spec gives no rate (the IMU above).
+A GNSS also publishes its heading, as a receiver with two antennas or an INS does, on
+`/autoware_orientation` at the fix's rate and in its frame: the sensor kit's `gnss_poser` reads
+it (`use_gnss_ins_orientation`, Autoware's default) to place base_link from the antenna. A
+heading taken from the bearing between two fixes is random while the car stands still.
 
 What Autoware's sensing pipeline needs beyond what `vehicle_check` looks at: the lidar as
 Autoware's `PointXYZIRC` layout; `NavSatFix` in the projection the map's

@@ -2,7 +2,7 @@
 <launch>
   <!--
     GNSS Processing - Converts the vehicle bridge's NavSatFix to PoseWithCovariance for Autoware.
-    Flow: vehicle bridge NavSatFix → gnss_poser → /sensing/gnss/pose_with_covariance → pose_initializer
+    Flow: vehicle bridge NavSatFix and GnssInsOrientationStamped → gnss_poser → /sensing/gnss/pose_with_covariance → pose_initializer
     Requires map_projector_info.yaml with projector_type: TransverseMercator
   -->
 
@@ -24,9 +24,12 @@
 
       <!-- Load required parameters -->
       <param from="$(find-pkg-share autoware_gnss_poser)/config/gnss_poser.param.yaml"/>
-      <!-- Disable orientation from IMU: the vehicle bridge's IMU publishes sensor_msgs/Imu, not GnssInsOrientationStamped.
-           Use position-derived orientation instead. -->
-      <param name="use_gnss_ins_orientation" value="false"/>
+      <!-- The receiver's heading (a dual-antenna / INS GnssInsOrientationStamped, with its own
+           error), which the vehicle bridge publishes on /autoware_orientation; Autoware's own
+           default. A bearing between two fixes instead is random while the car stands still,
+           and gnss_poser moves the antenna to base_link along it (scensim issue 195 L1b). -->
+      <remap from="autoware_orientation" to="/autoware_orientation"/>
+      <param name="use_gnss_ins_orientation" value="true"/>
     </node>
   </group>
 </launch>

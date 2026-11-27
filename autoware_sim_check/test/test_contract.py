@@ -69,3 +69,19 @@ def test_a_publisher_of_another_type_is_named_not_reported_silent():
         "/vehicle/status/velocity_status: type geometry_msgs/msg/TwistStamped, expected "
         "autoware_vehicle_msgs/msg/VelocityReport"]
     assert "nothing arrived" in C.check_topic(e, C.Observed())[0]
+
+
+def test_a_gnss_publishes_its_ins_orientation_at_the_fixs_rate_and_frame():
+    # scensim issue 195 L1b: gnss_poser reads the receiver's heading, not a bearing between fixes
+    for simulator in ("carla", "isaac"):
+        es = {e.topic: e for e in C.expected(SPEC, simulator)}
+        ins, fix = es["/autoware_orientation"], es["/sensing/gnss/gnss_link/nav_sat_fix"]
+        assert ins.type == "autoware_sensing_msgs/msg/GnssInsOrientationStamped"
+        assert (ins.min_hz, ins.frame) == (fix.min_hz, fix.frame) == (8.0, "gnss_link")
+
+
+def test_a_missing_ins_orientation_is_named():
+    obs = healthy("isaac")
+    del obs["/autoware_orientation"]
+    r = C.check(SPEC, "isaac", obs, URDF)
+    assert "nothing arrived" in r["/autoware_orientation"][0]
