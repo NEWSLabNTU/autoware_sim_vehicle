@@ -234,6 +234,11 @@
        the ordinary obstacle cloud), whose obstacle_stop then runs with its pointcloud check on
        (config/planning/motion_velocity_planner/obstacle_stop.lane_height_check.param.yaml, in
        place of obstacle_stop_param_path). Reads the raw cloud, the EKF's pose and the map only. -->
+  <!-- the compare-map filter's z band (scensim issue 180 step B v2): its downsize_ratio_z_axis;
+       the map's z leaf and the |dz| test are distance_threshold x this, 0.5 x 0.6 = 0.3 m in both
+       files the filter's parameters come from. The default is theirs and changes nothing; another
+       value is a copy of the picked file (scripts/pointcloud_map_filter_param), named in the log -->
+  <arg name="compare_map_z_ratio" default="0.6" description="compare-map filter's downsize_ratio_z_axis, (0, 1]; its z band is 0.5 m x this"/>
   <arg name="lane_height_check" default="false" description="stop for low obstacles on the lane that the ground filter passes (scensim issue 180); Autoware 1.5.0"/>
   <let name="lane_height_check_topic" value="/perception/obstacle_segmentation/lane_height_check/pointcloud"/>
   <let name="obstacle_stop_param_path" value="$(find-pkg-share autoware_sim_profile)/config/planning/motion_velocity_planner/obstacle_stop.lane_height_check.param.yaml" if="$(var lane_height_check)"/>
@@ -419,10 +424,10 @@
     <!-- the compare-map filter's loading, by the map (scensim issue 072): dynamic for a divided
          map (pointcloud_map.pcd a directory of tiles, pointcloud_map_metadata.yaml), upstream's
          file; static otherwise (acb issue 029), the profile's -->
-    <log message="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --mode $(var map_path)')"/>
+    <log message="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --mode --z-ratio $(var compare_map_z_ratio) $(var map_path) $(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml $(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml')"/>
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_perception_component.launch.xml">
       <arg name="pointcloud_map_filter_param_path"
-           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param $(var map_path) $(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml $(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml')"/>
+           value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --z-ratio $(var compare_map_z_ratio) $(var map_path) $(find-pkg-share autoware_sim_profile)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml $(find-pkg-share autoware_launch)/config/perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml')"/>
       <arg name="object_recognition" value="$(eval &quot;'$(var perception)' == 'true' and '$(var publish_ground_truth_objects)' != 'true'&quot;)"/>
       <arg name="traffic_light_recognition/fusion_only" value="$(var traffic_light_fusion_only)"/>
       <arg name="data_path" value="$(var data_path)"/>

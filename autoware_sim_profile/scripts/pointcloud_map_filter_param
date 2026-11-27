@@ -2,8 +2,8 @@
 """Print the compare-map filter's parameter file for a map: dynamic map loading for a divided
 map, static loading otherwise.
 
-    pointcloud_map_filter_param <map_path> <static param file> <dynamic param file>
-    pointcloud_map_filter_param --mode <map_path>
+    pointcloud_map_filter_param [--z-ratio R] <map_path> <static param file> <dynamic param file>
+    pointcloud_map_filter_param --mode [--z-ratio R] <map_path> [<static> <dynamic>]
 
 Detection's compare-map filter removes the map's own points from the obstacle cloud. The
 profile loads the map statically (acb issue 029: with dynamic loading, a street lamp at
@@ -17,9 +17,22 @@ town, whose metadata lists that one file) keeps static loading, as before.
 The choice is derived from the map, not configured. Run by a $(command) substitution while
 the launch resolves: prints the path (or, with --mode, the mode and why) with no newline and
 nothing on stderr; exits 2 on bad arguments.
+
+`--z-ratio R` (the profile's `compare_map_z_ratio`; scensim issue 180 step B v2) is the
+filter's downsize_ratio_z_axis: the map's z leaf and the |dz| test are distance_threshold x R
+(0.5 x 0.6 = 0.3 m in both files). At the picked file's own ratio the file is printed as it
+is and nothing is written. Another ratio writes a copy with only that line changed, under
+$ROS_HOME (default ~/.ros)/autoware_sim_profile/compare_map/<key>/, the key a hash of the source
+file's path and content and R: the same arguments name the same file, so the launch's log line
+and its parameter agree, and two stacks with the same file and ratio share an identical copy.
+A ratio outside (0, 1] is refused on stderr, naming compare_map_z_ratio, exit 2, which stops
+the launch.
 """
 
+import hashlib
+import math
 import os
+import re
 import sys
 
 TILES = "pointcloud_map.pcd"
@@ -41,17 +54,82 @@ def mode(map_path):
     return ("static", f"one point cloud file ({os.path.join(map_path, TILES)})")
 
 
+RATIO = re.compile(r"^(\s*downsize_ratio_z_axis:\s*)(\S+)(.*)$", re.M)
+THRESHOLD = re.compile(r"^\s*distance_threshold:\s*(\S+)", re.M)
+
+
+class Refused(Exception):
+    pass
+
+
+def z_ratio(text):
+    try:
+        r = float(text)
+    except ValueError:
+        raise Refused(f"compare_map_z_ratio: {text!r} is not a number")
+    if not (math.isfinite(r) and 0.0 < r <= 1.0):
+        raise Refused(f"compare_map_z_ratio: {text!r} is outside (0, 1]")
+    return r
+
+
+def with_ratio(src, ratio):
+    """The parameter file for `src` at `ratio`: `src` itself at its own ratio, else the copy."""
+    if ratio is None:
+        return src
+    try:
+        text = open(src).read()
+    except OSError:
+        raise Refused(f"compare_map_z_ratio: cannot read {src}")
+    found = RATIO.findall(text)
+    if len(found) != 1:
+        raise Refused(f"compare_map_z_ratio: {src} has {len(found)} downsize_ratio_z_axis lines")
+    if float(found[0][1]) == ratio:
+        return src
+    key = hashlib.sha256(f"{os.path.abspath(src)}\0{text}\0{ratio!r}".encode()).hexdigest()[:16]
+    home = os.environ.get("ROS_HOME") or os.path.join(os.path.expanduser("~"), ".ros")
+    d = os.path.join(home, "autoware_sim_profile", "compare_map", key)
+    out = os.path.join(d, os.path.basename(src))
+    if not os.path.isfile(out):
+        os.makedirs(d, exist_ok=True)
+        tmp = f"{out}.{os.getpid()}.tmp"
+        with open(tmp, "w") as f:
+            f.write(RATIO.sub(lambda m: f"{m.group(1)}{ratio!r}{m.group(3)}", text))
+        os.replace(tmp, out)
+    return out
+
+
+def band(path, ratio):
+    text = open(path).read()
+    t = THRESHOLD.search(text)
+    r = ratio if ratio is not None else float(RATIO.search(text).group(2))
+    return r, (float(t.group(1)) * r if t else float("nan"))
+
+
 def main(argv):
-    if len(argv) == 2 and argv[0] == "--mode":
-        m, why = mode(argv[1])
-        sys.stdout.write(f"compare-map filter: {m} map loading, {why}")
+    show = bool(argv) and argv[0] == "--mode"
+    argv = argv[1:] if show else argv
+    ratio = None
+    try:
+        if len(argv) >= 2 and argv[0] == "--z-ratio":
+            ratio, argv = z_ratio(argv[1]), argv[2:]
+        if show and len(argv) in (1, 3):
+            m, why = mode(argv[0])
+            line = f"compare-map filter: {m} map loading, {why}"
+            if len(argv) == 3:
+                picked = with_ratio(argv[1] if m == "static" else argv[2], ratio)
+                r, b = band(picked, ratio)
+                line += f"; z ratio {r} (band {b:.2f} m), file {picked}"
+            sys.stdout.write(line)
+            return 0
+        if show or len(argv) != 3:
+            sys.stdout.write(__doc__.splitlines()[0])
+            return 2
+        map_path, static, dynamic = argv
+        sys.stdout.write(with_ratio(dynamic if mode(map_path)[0] == "dynamic" else static, ratio))
         return 0
-    if len(argv) != 3:
-        sys.stdout.write(__doc__.splitlines()[0])
+    except Refused as e:
+        sys.stderr.write(f"pointcloud_map_filter_param: {e}\n")
         return 2
-    map_path, static, dynamic = argv
-    sys.stdout.write(dynamic if mode(map_path)[0] == "dynamic" else static)
-    return 0
 
 
 if __name__ == "__main__":

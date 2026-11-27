@@ -65,9 +65,9 @@
     <!-- the compare-map filter, by the map: static loading (acb issue 029), the profile's
          voxel_based_compare_map_filter parameters; dynamic for a divided map (scensim issue
          072), upstream's. An argument of pointcloud_map_filter.launch.xml -->
-    <log message="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --mode $(var map_path)')"/>
+    <log message="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --mode --z-ratio $(var compare_map_z_ratio) $(var map_path) $(var sim_config_dir)/perception/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml $(find-pkg-share autoware_perception_config)/config/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml')"/>
     <let name="voxel_based_compare_map_filter_node_param_path"
-         value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param $(var map_path) $(var sim_config_dir)/perception/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml $(find-pkg-share autoware_perception_config)/config/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml')"/>
+         value="$(command '$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param --z-ratio $(var compare_map_z_ratio) $(var map_path) $(var sim_config_dir)/perception/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml $(find-pkg-share autoware_perception_config)/config/object_recognition/detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml')"/>
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/2.0.0/component_perception.launch.xml">
       <arg name="object_recognition" value="$(eval &quot;'$(var perception)' == 'true' and '$(var publish_ground_truth_objects)' != 'true'&quot;)"/>
       <arg name="data_path" value="$(var data_path)"/>
