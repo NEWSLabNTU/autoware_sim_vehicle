@@ -297,3 +297,18 @@ def test_obstacle_stop_copy_differs_from_upstream_only_in_the_pointcloud_check()
     assert f["check_inside"]["pointcloud"] is True
     f["check_inside"]["pointcloud"] = False
     assert ours == theirs
+
+
+def test_the_argument_check_refuses_what_lane_height_check_cannot_do():
+    loader = importlib.machinery.SourceFileLoader(
+        "check_launch_args", str(PROFILE / "scripts" / "check_launch_args"))
+    spec = importlib.util.spec_from_loader("check_launch_args", loader)
+    m = importlib.util.module_from_spec(spec)
+    loader.exec_module(m)
+    assert m.problems(["lane_height_check:=true"]) == []
+    assert m.problems(["lane_height_check:=false", "autoware_release:=2.0.0"]) == []
+    assert "is not one of true, false" in m.problems(["lane_height_check:=yes"])[0]
+    p = m.problems(["lane_height_check:=true", "autoware_release:=2.1.0"])
+    assert len(p) == 1 and "Autoware 1.5.0" in p[0]
+    p = m.problems(["lane_height_check:=true", "obstacle_stop_param_path:=/x.yaml"])
+    assert len(p) == 1 and "obstacle_stop_param_path" in p[0]
