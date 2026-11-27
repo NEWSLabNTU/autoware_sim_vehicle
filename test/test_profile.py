@@ -681,11 +681,29 @@ def test_gnss_particle_spread_is_an_argument_defaulting_to_an_rtk_receivers():
 
 def test_pose_initializer_takes_the_gnss_particle_variance_in_x_and_y_only():
     text = read("config/localization/pose_initializer.param.yaml")
-    doc = yaml.safe_load(text.replace("$(var gnss_particle_variance)", "0.25"))
+    doc = yaml.safe_load(text.replace("$(var gnss_particle_variance)", "0.25")
+                         .replace("$(var gnss_particle_yaw_variance)", "0.5"))
     cov = params(doc)["gnss_particle_covariance"]
     assert len(cov) == 36
     assert (cov[0], cov[7]) == (0.25, 0.25)
-    assert (cov[14], cov[21], cov[28], cov[35]) == (0.01, 0.01, 0.01, 10.0)
+    assert (cov[14], cov[21], cov[28], cov[35]) == (0.01, 0.01, 0.01, 0.5)
     assert sum(1 for v in cov if v not in (0.0,)) == 6
     # the pose it outputs keeps upstream's covariance
     assert params(doc)["output_pose_covariance"][0] == 1.0
+
+
+# scensim issue 195, the start yaw: NDT's align drew every particle's yaw uniformly over the
+# circle, so on a straight, where its score is flat in yaw, the start yaw was noise (0.061 rad).
+# The overlay's ndt_scan_matcher samples around the guess's yaw when its variance is below
+# yaw_prior_variance_threshold; the GNSS guess's yaw variance is the receiver's heading error.
+def test_gnss_particle_yaw_spread_is_an_argument_defaulting_to_the_receivers_heading():
+    launch = read(LAUNCH)
+    # (3 x 0.2 deg)^2 in rad^2: the receiver's heading error, as gnss_particle_variance's x and y
+    assert arg_default(launch, "gnss_particle_yaw_variance") == "1.1e-4"
+
+
+def test_ndt_samples_the_align_yaw_around_a_guess_better_than_its_threshold():
+    doc = yaml.safe_load(read("config/localization/ndt_scan_matcher/ndt_scan_matcher.param.yaml"))
+    ipe = params(doc)["initial_pose_estimation"]
+    assert ipe["yaw_prior_variance_threshold"] == 0.01
+    assert float(arg_default(read(LAUNCH), "gnss_particle_yaw_variance")) < 0.01
