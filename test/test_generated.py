@@ -21,6 +21,13 @@ def test_the_model3_is_the_measured_car():
         assert line in info, line
 
 
+def test_every_body_carries_its_ground_clearance():
+    # scensim issue 180: lane_height_check's h is the clearance less a margin, from the spec
+    for d in ("tesla_model3_description", "tesla_model3_carla_1_0_description"):
+        body = (ROOT / "cars/tesla_model3" / d / "config/body.param.yaml").read_text()
+        assert "ground_clearance: 0.138" in body, d
+
+
 def test_the_carla_1_0_body_is_its_own_vehicle_model():
     # Autoware reads <vehicle_model>_description's vehicle_info in places no argument reaches
     d = ROOT / "cars/tesla_model3/tesla_model3_carla_1_0_description"
