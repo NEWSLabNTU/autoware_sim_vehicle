@@ -40,6 +40,7 @@ RETIRED_VALUES = {
 CHOICES = {
     "ndt": ("autoware", "cuda", "none"),
     "autoware_release": ("1.5.0", "2.0.0", "2.1.0"),
+    "lane_height_check": ("true", "false"),
 }
 
 
@@ -56,6 +57,16 @@ def pair_problems(given):
         if given.get("use_multi_channel_tracker_merger", "true").lower() == "false":
             out.append(f"use_multi_channel_tracker_merger:=false has no counterpart in Autoware "
                        f"{release}'s tracker; leave it out on autoware_release:={release}")
+    if given.get("lane_height_check", "false") == "true":
+        # scensim issue 180: wired into the 1.5.0 profile only, and it brings its own
+        # obstacle_stop parameters (the pointcloud check on)
+        if release != "1.5.0":
+            out.append(f"lane_height_check:=true runs on Autoware 1.5.0 only; leave it out on "
+                       f"autoware_release:={release}")
+        if "obstacle_stop_param_path" in given:
+            out.append("lane_height_check:=true uses the profile's obstacle_stop parameters "
+                       "(its pointcloud check on), so obstacle_stop_param_path:= would not be "
+                       "read; pass one or the other")
     if ndt == "cuda" and "localization_error_monitor_param_path" in given:
         # cuda_localization.launch.xml hard-codes the error monitor's file
         out.append("localization_error_monitor_param_path:= does not reach ndt:=cuda's "
