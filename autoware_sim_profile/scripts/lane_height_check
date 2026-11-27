@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""lane_height_check: obstacles on the lane that the ground filter passes as ground (scensim
+issue 180, option 3, the user's choice I2).
+
+Autoware 1.5.0's obstacle pipeline takes anything under its ground filter's 0.20 m for ground,
+even when it is taller than the car's clearance: a 15 cm rock under a Model 3's plate (0.138 m)
+was never an object, and the car struck it. This node checks the lane only, against the map:
+
+- a raw lidar point (`~/input/pointcloud`, base_link) placed in the map by the EKF's pose
+  (`~/input/kinematic_state`) is an obstacle point when it lies on a road lanelet (the map's
+  lanelet2_map.osm), 1 to 30 m ahead of base_link, outside the ego's box, and more than h above
+  the highest map point within about 0.5 m of it (the map's pointcloud_map.pcd, one file or
+  tiles);
+- h = the car's ground clearance less 0.04 m, at least 0.05 m (`threshold`): the margin covers
+  the EKF's height error and the map road's spread. The clearance is the spec's
+  (body.ground_clearance, in the car's generated body.param.yaml);
+- obstacle points are binned in 0.3 m map cells; touching cells holding at least 3 points are
+  a detection; a detection present in 3 consecutive frames (each within 1 m of the last) is
+  published: its points, in base_link with the input's stamp, on `~/output/pointcloud`.
+
+The profile feeds `~/output/pointcloud` to the motion velocity planner alone (a node-targeted
+remap) and turns on obstacle_stop's pointcloud check; every other reader keeps the ordinary
+obstacle cloud. The node reads sensors and the map only, never a simulator's truth.
+
+    ros2 run autoware_sim_profile lane_height_check --ros-args -p map_path:=<dir> \\
+        --params-file <car>_description/config/vehicle_info.param.yaml \\
+        --params-file <car>_description/config/body.param.yaml
+
+`~/debug/status` (std_msgs/String, JSON) reports each frame: points in, on the lane, obstacle
+points, detections, published points and the processing time in ms.
+"""
+
+import glob
+import json
+import math
+import os
+import time
+import xml.etree.ElementTree as ET
+
+import numpy as np
+
+MARGIN = 0.04       # m: below the clearance
+FLOOR = 0.05        # m: the lowest h (the EKF's height error and the map's road spread)
+CELL = 0.3          # m: detection cells
+MIN_POINTS = 3      # points in a detection
+FRAMES = 3          # consecutive frames before a detection is published
+TRACK_RADIUS = 1.0  # m: a detection's move between frames
+NEAR, FAR = 1.0, 30.0   # m ahead of base_link
+EGO_MARGIN = 0.2    # m around the ego's box
+REF_CELL = 0.2      # m: the map's reference grid
+REF_RADIUS = 0.5    # m: the reference is the highest map point within this
+LANE_PAD = 1.0      # m: map points kept around the lanelets
+
+
+def threshold(clearance, margin=MARGIN, floor=FLOOR):
+    """h: the height above the map's road that makes a point an obstacle."""
+    return max(float(clearance) - margin, floor)
+
+
+class Settings:
+    def __init__(self, h, front, rear, half_width):
+        self.h = h
+        self.front, self.rear, self.half_width = front, rear, half_width
+
+    @classmethod
+    def from_vehicle(cls, vi, clearance):
+        """`vi`: Autoware's vehicle_info parameters (base_link at the rear axle)."""
+        front = vi["wheel_base"] + vi["front_overhang"]
+        half = (vi["wheel_tread"] + vi["left_overhang"] + vi["right_overhang"]) / 2
+        return cls(threshold(clearance), front, vi["rear_overhang"], half)
+
+
+# --- the map ---------------------------------------------------------------------------------
+
+class Lanes:
+    """The road lanelets' polygons (left bound, then the right bound reversed)."""
+
+    def __init__(self, polygons):
+        from matplotlib.path import Path
+        self.paths = [Path(p) for p in polygons]
+        self.boxes = np.array([[p[:, 0].min(), p[:, 1].min(), p[:, 0].max(), p[:, 1].max()]
+                               for p in polygons]) if polygons else np.zeros((0, 4))
+
+    @classmethod
+    def from_osm(cls, path):
+        root = ET.parse(path).getroot()
+        xy = {}
+        for n in root.findall("node"):
+            t = {k.get("k"): k.get("v") for k in n.findall("tag")}
+            if "local_x" in t and "local_y" in t:
+                xy[n.get("id")] = (float(t["local_x"]), float(t["local_y"]))
+        ways = {w.get("id"): [xy[nd.get("ref")] for nd in w.findall("nd") if nd.get("ref") in xy]
+                for w in root.findall("way")}
+        polys = []
+        for rel in root.findall("relation"):
+            t = {k.get("k"): k.get("v") for k in rel.findall("tag")}
+            if t.get("type") != "lanelet" or t.get("subtype", "road") != "road":
+                continue
+            m = {mm.get("role"): mm.get("ref") for mm in rel.findall("member")}
+            left, right = ways.get(m.get("left"), []), ways.get(m.get("right"), [])
+            if len(left) >= 2 and len(right) >= 2:
+                polys.append(np.array(left + right[::-1], float))
+        return cls(polys)
+
+    def contains(self, xy):
+        xy = np.asarray(xy, float)
+        inside = np.zeros(len(xy), bool)
+        for path, (x0, y0, x1, y1) in zip(self.paths, self.boxes):
+            k = ~inside & (xy[:, 0] >= x0) & (xy[:, 0] <= x1) & (xy[:, 1] >= y0) & (xy[:, 1] <= y1)
+            if k.any():
+                inside[np.flatnonzero(k)[path.contains_points(xy[k])]] = True
+        return inside
+
+    def near(self, xy, pad):
+        """Points within the lanelets' boxes grown by `pad`: the map points worth keeping."""
+        k = np.zeros(len(xy), bool)
+        for x0, y0, x1, y1 in self.boxes:
+            k |= ((xy[:, 0] >= x0 - pad) & (xy[:, 0] <= x1 + pad)
+                  & (xy[:, 1] >= y0 - pad) & (xy[:, 1] <= y1 + pad))
+        return k
+
+
+def read_pcd(path):
+    """x, y, z of a binary PCD (the course builder's and divide_pcd.py's)."""
+    raw = open(path, "rb").read()
+    head, _, body = raw.partition(b"DATA binary\n")
+    lines = head.split(b"\n")
+    field = lambda key: [l for l in lines if l.startswith(key)][0].split()[1:]
+    n = int(field(b"POINTS")[0])
+    names = [f.decode() for f in field(b"FIELDS")]
+    sizes = [int(s) for s in field(b"SIZE")]
+    step = sum(sizes)
+    a = np.frombuffer(body[:step * n], np.uint8).reshape(n, step)
+    off = {nm: sum(sizes[:i]) for i, nm in enumerate(names)}
+    return np.stack([a[:, off[c]:off[c] + 4].copy().view(np.float32)[:, 0] for c in "xyz"], 1)
+
+
+def map_points(map_path):
+    pcd = os.path.join(map_path, "pointcloud_map.pcd")
+    files = sorted(glob.glob(os.path.join(pcd, "*.pcd"))) if os.path.isdir(pcd) else [pcd]
+    return np.concatenate([read_pcd(f) for f in files]).astype(float)
+
+
+class Reference:
+    """The highest map point within about REF_RADIUS of an xy: a REF_CELL grid of the map's
+    highest point per cell, max-filtered by a disc, over the lanes only."""
+
+    def __init__(self, pts):
+        from scipy.ndimage import maximum_filter
+        if len(pts) == 0:
+            self.grid, self.origin = np.full((1, 1), -np.inf), np.zeros(2)
+            return
+        self.origin = pts[:, :2].min(axis=0) - 1.0
+        ij = np.floor((pts[:, :2] - self.origin) / REF_CELL).astype(int)
+        shape = ij.max(axis=0) + 3
+        top = np.full(shape, -np.inf)
+        np.maximum.at(top, (ij[:, 0], ij[:, 1]), pts[:, 2])
+        r = int(math.ceil(REF_RADIUS / REF_CELL))
+        u = np.arange(-r, r + 1)
+        disc = (u[:, None] ** 2 + u[None, :] ** 2) * REF_CELL ** 2 <= REF_RADIUS ** 2 + 1e-9
+        self.grid = maximum_filter(top, footprint=disc, mode="constant", cval=-np.inf)
+
+    def at(self, xy):
+        ij = np.floor((xy - self.origin) / REF_CELL).astype(int)
+        ok = ((ij[:, 0] >= 0) & (ij[:, 1] >= 0) & (ij[:, 0] < self.grid.shape[0])
+              & (ij[:, 1] < self.grid.shape[1]))
+        out = np.full(len(xy), -np.inf)
+        out[ok] = self.grid[ij[ok, 0], ij[ok, 1]]
+        return out
+
+
+# --- the check -------------------------------------------------------------------------------
+
+class LaneHeightCheck:
+    def __init__(self, map_path, settings):
+        self.s = settings
+        self.lanes = Lanes.from_osm(os.path.join(map_path, "lanelet2_map.osm"))
+        pts = map_points(map_path)
+        self.ref = Reference(pts[self.lanes.near(pts[:, :2], LANE_PAD)])
+
+    def obstacle_points(self, cloud, pose):
+        """The cloud's obstacle points in the map. `cloud`: N x 3 in base_link; `pose`: base_link
+        in the map, (x, y, z, yaw)."""
+        p = np.asarray(cloud, float)
+        if len(p) == 0:
+            return np.zeros((0, 3))
+        s = self.s
+        k = (p[:, 0] > NEAR) & (p[:, 0] < FAR)
+        ego = ((p[:, 0] > -s.rear - EGO_MARGIN) & (p[:, 0] < s.front + EGO_MARGIN)
+               & (np.abs(p[:, 1]) < s.half_width + EGO_MARGIN))
+        p = p[k & ~ego]
+        x, y, z, yaw = pose
+        c, sn = math.cos(yaw), math.sin(yaw)
+        m = np.c_[x + c * p[:, 0] - sn * p[:, 1], y + sn * p[:, 0] + c * p[:, 1], z + p[:, 2]]
+        m = m[self.lanes.contains(m[:, :2])]
+        return m[m[:, 2] - self.ref.at(m[:, :2]) > s.h]
+
+
+def detections(pts, cell=CELL, min_points=MIN_POINTS):
+    """Groups of touching `cell` cells holding at least `min_points` of `pts` (map frame)."""
+    from scipy.ndimage import label
+    if len(pts) == 0:
+        return []
+    ij = np.floor(pts[:, :2] / cell).astype(int)
+    lo = ij.min(axis=0)
+    ij -= lo
+    count = np.zeros(ij.max(axis=0) + 1, int)
+    np.add.at(count, (ij[:, 0], ij[:, 1]), 1)
+    lab, n = label(count > 0, structure=np.ones((3, 3)))
+    of = lab[ij[:, 0], ij[:, 1]]
+    return [pts[of == g] for g in range(1, n + 1) if (of == g).sum() >= min_points]
+
+
+class Persistence:
+    """A detection is published from its `frames`-th consecutive frame, each within `radius`
+    of the last; a frame without it ends it."""
+
+    def __init__(self, frames=FRAMES, radius=TRACK_RADIUS):
+        self.frames, self.radius = frames, radius
+        self.tracks = []   # [(centre xy, age)]
+
+    def update(self, dets):
+        new, out = [], []
+        for d in dets:
+            c = d[:, :2].mean(axis=0)
+            age = 1 + max((a for tc, a in self.tracks if np.hypot(*(c - tc)) <= self.radius),
+                          default=0)
+            new.append((c, age))
+            if age >= self.frames:
+                out.append(d)
+        self.tracks = new
+        return np.concatenate(out) if out else np.zeros((0, 3))
+
+
+# --- ROS -------------------------------------------------------------------------------------
+
+def to_cloud(pts, stamp, frame):
+    from sensor_msgs.msg import PointCloud2, PointField
+    pts = np.ascontiguousarray(pts, np.float32).reshape(-1, 3)
+    m = PointCloud2()
+    m.header.stamp, m.header.frame_id = stamp, frame
+    m.height, m.width = 1, len(pts)
+    m.fields = [PointField(name=c, offset=4 * i, datatype=PointField.FLOAT32, count=1)
+                for i, c in enumerate("xyz")]
+    m.is_bigendian, m.point_step, m.row_step, m.is_dense = False, 12, 12 * len(pts), True
+    m.data = pts.tobytes()
+    return m
+
+
+def from_cloud(m):
+    off = {f.name: f.offset for f in m.fields}
+    a = np.frombuffer(bytes(m.data), np.uint8).reshape(-1, m.point_step)
+    return np.stack([a[:, off[c]:off[c] + 4].copy().view(np.float32)[:, 0] for c in "xyz"], 1)
+
+
+def _make_node():
+    """The node class, made on demand so the module imports without ROS (`Node` is it)."""
+    import rclpy.node
+    from nav_msgs.msg import Odometry
+    from rclpy.qos import qos_profile_sensor_data
+    from sensor_msgs.msg import PointCloud2
+    from std_msgs.msg import String
+
+    class LaneHeightCheckNode(rclpy.node.Node):
+        def __init__(self):
+            super().__init__("lane_height_check", automatically_declare_parameters_from_overrides=True)
+            get = lambda name: self.get_parameter(name).value
+            for name in ("map_path", "ground_clearance", "wheel_base"):
+                if not self.has_parameter(name):
+                    raise SystemExit(
+                        f"lane_height_check: no parameter {name} (map_path from the launch; the "
+                        "car's vehicle_info.param.yaml and body.param.yaml, generated from its "
+                        "spec: a spec without body.ground_clearance cannot run this check)")
+            vi = {k: float(get(k)) for k in ("wheel_base", "front_overhang", "rear_overhang",
+                                             "wheel_tread", "left_overhang", "right_overhang")}
+            settings = Settings.from_vehicle(vi, float(get("ground_clearance")))
+            t0 = time.monotonic()
+            self.check = LaneHeightCheck(str(get("map_path")), settings)
+            self.persist = Persistence()
+            self.pose = None
+            self.get_logger().info(
+                f"h {settings.h:.3f} m (clearance {float(get('ground_clearance')):.3f} m less "
+                f"{MARGIN} m, at least {FLOOR} m); {len(self.check.lanes.paths)} road lanelets; "
+                f"map loaded in {time.monotonic() - t0:.1f} s")
+            self.out = self.create_publisher(PointCloud2, "~/output/pointcloud", 1)
+            self.status = self.create_publisher(String, "~/debug/status", 1)
+            self.create_subscription(Odometry, "~/input/kinematic_state", self.on_pose, 10)
+            self.create_subscription(PointCloud2, "~/input/pointcloud", self.on_cloud,
+                                     qos_profile_sensor_data)
+
+        def on_pose(self, m):
+            q, p = m.pose.pose.orientation, m.pose.pose.position
+            yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+            self.pose = (p.x, p.y, p.z, yaw)
+
+        def on_cloud(self, m):
+            if self.pose is None:
+                return
+            t0 = time.monotonic()
+            cloud = from_cloud(m)
+            pts = self.check.obstacle_points(cloud, self.pose)
+            dets = detections(pts)
+            pub = self.persist.update(dets)
+            # back to base_link
+            x, y, z, yaw = self.pose
+            c, s = math.cos(yaw), math.sin(yaw)
+            dx, dy = pub[:, 0] - x, pub[:, 1] - y
+            local = np.c_[c * dx + s * dy, -s * dx + c * dy, pub[:, 2] - z]
+            self.out.publish(to_cloud(local, m.header.stamp, m.header.frame_id))
+            self.status.publish(String(data=json.dumps({
+                "points": int(len(cloud)), "obstacle_points": int(len(pts)),
+                "detections": len(dets), "published_points": int(len(pub)),
+                "ms": round(1000 * (time.monotonic() - t0), 2)})))
+
+    return LaneHeightCheckNode
+
+
+def __getattr__(name):
+    if name == "Node":
+        return _make_node()
+    raise AttributeError(name)
+
+
+def main():
+    import rclpy
+    rclpy.init()
+    node = _make_node()()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

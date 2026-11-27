@@ -1,0 +1,5 @@
+# Generated from sim_vehicle_spec/vehicles/drift_mustang.yaml (spec_hash 07003bd3a4de860212e5b48770fed824450208867f8363644a81f5d54229736c) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# The body of drift_mustang: ground clearance, unladen (the spec's body.ground_clearance).
+/**:
+  ros__parameters:
+    {}

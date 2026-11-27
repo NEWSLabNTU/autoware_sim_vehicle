@@ -198,6 +198,21 @@ def sensor_kit_xacro(spec, header):
     return "\n".join(lines)
 
 
+def body_params(spec, header):
+    """The body's facts a profile node reads (scensim issue 180: lane_height_check's h is the
+    ground clearance less a margin). A spec without body.ground_clearance gets the file without
+    it, and lane_height_check refuses to start on that car, naming the key."""
+    b = spec.doc.get("body") or {}
+    out = (emit.comment(header) + emit.comment(
+        f"The body of {spec.name}: ground clearance, unladen (the spec's body.ground_clearance).")
+        + "/**:\n  ros__parameters:\n")
+    if "ground_clearance" in b:
+        out += f"    ground_clearance: {emit.fmt(b['ground_clearance'])}  # m, ground to the underbody\n"
+    else:
+        out += "    {}\n"
+    return out
+
+
 def spec_hash_file(spec, header):
     """What the vehicle agent reports when it registers with a scenario's relay (roadmap 051):
     the spec these packages were generated from, and the body they describe."""
@@ -292,6 +307,7 @@ def outputs(specs_dir, root):
             out[f"{vd}/config/vehicle_info.param.yaml"] = vehicle_info(e, header)
             out[f"{vd}/config/mirror.param.yaml"] = mirror(e, header)
             out[f"{vd}/config/spec_hash.yaml"] = spec_hash_file(e, header)
+            out[f"{vd}/config/body.param.yaml"] = body_params(e, header)
         kd = f"{base}/{kit}_description"
         sc, skc = sensors_calibration(spec, header), sensor_kit_calibration(spec, header)
         out[f"{kd}/config/sensors_calibration.yaml"] = sc

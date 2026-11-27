@@ -1,0 +1,5 @@
+# Generated from sim_vehicle_spec/vehicles/tesla_model3.yaml (spec_hash 4d2bbaff65967b5aeb6f9fd35e0fc9b8b6c575824ad57158c9f9b68db13a5d76) by autoware_gen (autoware_sim_vehicle `just generate`): do not edit; change the spec and regenerate.
+# The body of tesla_model3: ground clearance, unladen (the spec's body.ground_clearance).
+/**:
+  ros__parameters:
+    ground_clearance: 0.138  # m, ground to the underbody

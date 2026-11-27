@@ -6,7 +6,6 @@ use synthetic maps and clouds, no ROS, except the node test at the end."""
 import importlib.machinery
 import importlib.util
 import math
-import textwrap
 from pathlib import Path
 
 import numpy as np
@@ -278,7 +277,10 @@ def test_the_launch_wires_only_the_motion_velocity_planner():
     text = (PROFILE / "launch/autoware.launch.xml").read_text()
     assert '<arg name="lane_height_check" default="false"' in text
     assert ('<set_remap from="motion_velocity_planner:~/input/no_ground_pointcloud" '
-            'to="/perception/obstacle_segmentation/lane_height_check/pointcloud"') in text
+            'to="$(var lane_height_check_topic)" if="$(var lane_height_check)"/>') in text
+    assert ('<let name="lane_height_check_topic" '
+            'value="/perception/obstacle_segmentation/lane_height_check/pointcloud"/>') in text
+    assert '<remap from="~/output/pointcloud" to="$(var lane_height_check_topic)"/>' in text
     assert 'exec="lane_height_check"' in text
 
 

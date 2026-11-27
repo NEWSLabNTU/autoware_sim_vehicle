@@ -218,6 +218,16 @@
        description="the motion velocity planner's obstacle_cruise parameter file (idling time, RSS braking, safe distance margin); upstream's by default; set per stack to run another cruise strategy (carla-scenario-bridge roadmap 074 E3)"/>
   <arg name="obstacle_stop_param_path" default="$(var up_planning_config_dir)/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/obstacle_stop.param.yaml"
        description="the motion velocity planner's obstacle_stop parameter file (stop margin); upstream's by default (roadmap 074 E3)"/>
+  <!-- lane_height_check (scensim issue 180, option 3, I2; Autoware 1.5.0): obstacles on a road
+       lanelet that stand more than h above the map's road, h = the car's ground clearance less
+       0.04 m (at least 0.05 m), which the ground filter's 0.20 m passes as ground. Its cloud
+       alone goes to the motion velocity planner (a node-targeted remap; every other reader keeps
+       the ordinary obstacle cloud), whose obstacle_stop then runs with its pointcloud check on
+       (config/planning/motion_velocity_planner/obstacle_stop.lane_height_check.param.yaml, in
+       place of obstacle_stop_param_path). Reads the raw cloud, the EKF's pose and the map only. -->
+  <arg name="lane_height_check" default="false" description="stop for low obstacles on the lane that the ground filter passes (scensim issue 180); Autoware 1.5.0"/>
+  <let name="lane_height_check_topic" value="/perception/obstacle_segmentation/lane_height_check/pointcloud"/>
+  <let name="obstacle_stop_param_path" value="$(find-pkg-share autoware_sim_profile)/config/planning/motion_velocity_planner/obstacle_stop.lane_height_check.param.yaml" if="$(var lane_height_check)"/>
   <!-- The behavior velocity planner's intersection module: upstream's by default, whose
        occlusion handling is off (occlusion.enable false). The profile's
        config/planning/behavior_velocity_planner/intersection_occlusion.param.yaml is upstream
@@ -462,6 +472,7 @@
        autoware.launch.xml passes them; the two it takes from its own defaults are written
        out. The trajectory relay is the one autoware.launch.xml starts beside planning. -->
   <group if="$(eval &quot;'$(var planning)' == 'true' and '$(var sim_planning)' == 'true'&quot;)">
+    <set_remap from="motion_velocity_planner:~/input/no_ground_pointcloud" to="$(var lane_height_check_topic)" if="$(var lane_height_check)"/>
     <include file="$(find-pkg-share autoware_sim_profile)/launch/components/tier4_planning_component.launch.xml">
       <arg name="module_preset" value="$(var planning_module_preset)"/>
       <arg name="enable_all_modules_auto_mode" value="false"/>
@@ -553,6 +564,17 @@
 
   <node pkg="autoware_sim_profile" exec="clock_guard" name="clock_guard" output="screen"
         on_exit="shutdown" if="$(var sim_clock_guard)"/>
+
+  <node pkg="autoware_sim_profile" exec="lane_height_check" name="lane_height_check" output="screen"
+        if="$(eval &quot;'$(var lane_height_check)' == 'true' and $(var aw15)&quot;)">
+    <param name="map_path" value="$(var map_path)"/>
+    <param from="$(find-pkg-share $(var vehicle_model)_description)/config/vehicle_info.param.yaml"/>
+    <param from="$(find-pkg-share $(var vehicle_model)_description)/config/body.param.yaml"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="~/input/pointcloud" to="/sensing/lidar/concatenated/pointcloud"/>
+    <remap from="~/input/kinematic_state" to="/localization/kinematic_state"/>
+    <remap from="~/output/pointcloud" to="$(var lane_height_check_topic)"/>
+  </node>
 
   <group if="$(eval '&quot;$(var extra_launch)&quot; != &quot;&quot;')">
     <include file="$(var extra_launch)">
