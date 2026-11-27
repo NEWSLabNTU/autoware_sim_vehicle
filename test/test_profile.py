@@ -649,15 +649,17 @@ def test_the_launch_picks_the_compare_map_filter_by_the_map():
     cmd = "$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param"
     rel = "perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml"
     launch = (PROFILE / LAUNCH).read_text()
-    assert f"<log message=\"$(command '{cmd} --mode $(var map_path)')\"/>" in launch
-    assert (f"value=\"$(command '{cmd} $(var map_path) $(find-pkg-share autoware_sim_profile)/config/"
-            f"{rel} $(find-pkg-share autoware_launch)/config/{rel}')\"/>") in launch
+    z = "--z-ratio $(var compare_map_z_ratio)"
+    pair = (f"$(var map_path) $(find-pkg-share autoware_sim_profile)/config/{rel} "
+            f"$(find-pkg-share autoware_launch)/config/{rel}")
+    assert f"<log message=\"$(command '{cmd} --mode {z} {pair}')\"/>" in launch
+    assert f"value=\"$(command '{cmd} {z} {pair}')\"/>" in launch
     component = (PROFILE / "launch/components/tier4_perception_component.launch.xml").read_text()
     assert ("<arg name=\"pointcloud_map_filter_param_path\" default=\"$(find-pkg-share "
             f"autoware_sim_profile)/config/{rel}\"") in component
     assert 'value="$(var pointcloud_map_filter_param_path)"' in component
     v2 = (PROFILE / "launch/autoware-2.0.0.launch.xml").read_text()
-    assert f"<log message=\"$(command '{cmd} --mode $(var map_path)')\"/>" in v2
+    assert f"<log message=\"$(command '{cmd} --mode --z-ratio $(var compare_map_z_ratio) $(var map_path) " in v2
     assert "$(find-pkg-share autoware_perception_config)/config/object_recognition/detection/" in v2
     # the profile's own files stay static (acb issue 029); upstream's are the dynamic ones
     static15 = yaml.safe_load((PROFILE / "config" / rel).read_text())
@@ -791,9 +793,11 @@ def test_a_compare_map_z_ratio_outside_zero_to_one_is_refused_by_name(tmp_path):
 
 def test_the_launches_take_compare_map_z_ratio_defaulting_to_the_files_value():
     cmd = "$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param"
+    # declared once: autoware-2.0.0.launch.xml is included by the main launch and reads its
+    # arguments, as it reads map_path
+    assert arg_default((PROFILE / LAUNCH).read_text(), "compare_map_z_ratio") == "0.6"
     for name in (LAUNCH, "launch/autoware-2.0.0.launch.xml"):
         launch = (PROFILE / name).read_text()
-        assert arg_default(launch, "compare_map_z_ratio") == "0.6", name
         assert f"{cmd} --mode --z-ratio $(var compare_map_z_ratio) $(var map_path) " in launch, name
         assert f"{cmd} --z-ratio $(var compare_map_z_ratio) $(var map_path) " in launch, name
     # the default changes nothing: both files the launch picks from carry 0.6
