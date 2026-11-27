@@ -70,6 +70,12 @@
       # If it is equal to 'initial_estimate_particles_num', the search will be the same as a full random search.
       n_startup_trials: 100
 
+      # When the initial pose's yaw variance is below this [rad^2], the particles' yaw is drawn
+      # from a normal around its yaw instead of uniformly over the circle. 0.0: always uniform.
+      # Our overlay's ndt_scan_matcher (scensim issue 195, the start yaw): a guess better than
+      # 5.7 deg (1 sigma), as a GNSS receiver's heading is.
+      yaw_prior_variance_threshold: 0.01
+
 
     validation:
       # Tolerance of timestamp difference between initial_pose and sensor pointcloud. [sec]

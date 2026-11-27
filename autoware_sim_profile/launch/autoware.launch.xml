@@ -197,6 +197,11 @@
        An RTK receiver's by default, (3 x 2 cm)^2 floored at 0.01; Autoware's 1.0 is an ordinary
        receiver's, and on a straight a particle that far along wins the align and keeps it. -->
   <arg name="gnss_particle_variance" default="0.01" description="pose initializer's GNSS particle variance in x and y, m^2"/>
+  <!-- scensim issue 195, the start yaw: the GNSS guess's yaw variance, the receiver's heading
+       error, (3 x 0.2 deg)^2. Below ndt_scan_matcher's yaw_prior_variance_threshold (the
+       overlay's), the align samples its particles' yaw around the guess instead of over the
+       circle; Autoware's 10.0 is no heading at all. -->
+  <arg name="gnss_particle_yaw_variance" default="1.1e-4" description="pose initializer's GNSS particle variance in yaw, rad^2"/>
   <arg name="sim_perception" default="true" description="selectable lidar model, fusion-only traffic lights"/>
   <arg name="sim_system" default="true" description="simulation component-state topics, MRM params, diagnostic graph"/>
   <!-- MPC's automatic steering offset removal off (issue 025): it learns from collisions

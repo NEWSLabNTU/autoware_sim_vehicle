@@ -15,7 +15,8 @@
     stop_check_enabled: $(var stop_check_enabled)
 
     # from gnss: the align's particles spread in x and y as the receiver errs (the profile's
-    # gnss_particle_variance, scensim issue 195 L1d; Autoware's 1.0 is an ordinary receiver's)
+    # gnss_particle_variance, scensim issue 195 L1d; Autoware's 1.0 is an ordinary receiver's),
+    # and in yaw as its heading errs (gnss_particle_yaw_variance; Autoware's 10.0 is none)
     gnss_particle_covariance:
       [
         $(var gnss_particle_variance), 0.0, 0.0,  0.0,  0.0,  0.0,
@@ -23,7 +24,7 @@
         0.0, 0.0, 0.01, 0.0,  0.0,  0.0,
         0.0, 0.0, 0.0,  0.01, 0.0,  0.0,
         0.0, 0.0, 0.0,  0.0,  0.01, 0.0,
-        0.0, 0.0, 0.0,  0.0,  0.0,  10.0,
+        0.0, 0.0, 0.0,  0.0,  0.0,  $(var gnss_particle_yaw_variance),
       ]
 
     # output
