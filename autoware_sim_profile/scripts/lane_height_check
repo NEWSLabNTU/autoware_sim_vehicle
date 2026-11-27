@@ -50,6 +50,7 @@ EGO_MARGIN = 0.2    # m around the ego's box
 REF_CELL = 0.2      # m: the map's reference grid
 REF_RADIUS = 0.5    # m: the reference is the highest map point within this
 LANE_PAD = 1.0      # m: map points kept around the lanelets
+CELL_LANE = 0.1     # m: the lanelets' raster (a cell an edge passes through is inside)
 
 
 def threshold(clearance, margin=MARGIN, floor=FLOOR):
@@ -79,6 +80,9 @@ class Lanes:
         self.paths = [np.asarray(p, float) for p in polygons]
         self.boxes = np.array([[p[:, 0].min(), p[:, 1].min(), p[:, 0].max(), p[:, 1].max()]
                                for p in polygons]) if polygons else np.zeros((0, 4))
+        # each lanelet rasterised once, so a frame is a lookup (the exact test, per frame, cost
+        # 8 ms a lanelet on a course's long lanelets)
+        self.rasters = [raster_polygon(p, CELL_LANE) for p in self.paths]
 
     @classmethod
     def from_osm(cls, path):
@@ -104,10 +108,13 @@ class Lanes:
     def contains(self, xy):
         xy = np.asarray(xy, float)
         inside = np.zeros(len(xy), bool)
-        for path, (x0, y0, x1, y1) in zip(self.paths, self.boxes):
-            k = ~inside & (xy[:, 0] >= x0) & (xy[:, 0] <= x1) & (xy[:, 1] >= y0) & (xy[:, 1] <= y1)
+        for (ox, oy, mask) in self.rasters:
+            i = np.floor((xy[:, 0] - ox) / CELL_LANE).astype(np.int64)
+            j = np.floor((xy[:, 1] - oy) / CELL_LANE).astype(np.int64)
+            k = ~inside & (i >= 0) & (j >= 0) & (i < mask.shape[0]) & (j < mask.shape[1])
             if k.any():
-                inside[np.flatnonzero(k)[inside_polygon(path, xy[k])]] = True
+                idx = np.flatnonzero(k)
+                inside[idx[mask[i[idx], j[idx]]]] = True
         return inside
 
     def near(self, xy, pad):
@@ -196,6 +203,39 @@ def inside_polygon(poly, pts, chunk=4096):
         d2 = (px - (xi + t * dx)) ** 2 + (py - (yi + t * dy)) ** 2
         out[k:k + chunk] = inside | (d2 <= BOUNDARY * BOUNDARY).any(axis=1)
     return out
+
+
+def raster_polygon(poly, cell):
+    """`poly` as cells of `cell` m: (origin x, origin y, mask). A cell is inside when its centre
+    is (the even-odd rule, row by row) or an edge passes through it, so a point on the polygon's
+    boundary, and anything within a cell of it, is inside."""
+    poly = np.asarray(poly, float)
+    ox, oy = poly[:, 0].min() - cell, poly[:, 1].min() - cell
+    nx = int(np.ceil((poly[:, 0].max() + cell - ox) / cell)) + 1
+    ny = int(np.ceil((poly[:, 1].max() + cell - oy) / cell)) + 1
+    mask = np.zeros((nx, ny), bool)
+    xi, yi = poly[:, 0], poly[:, 1]
+    q = np.roll(poly, -1, axis=0)
+    xj, yj = q[:, 0], q[:, 1]
+    dy = yj - yi
+    safe_dy = np.where(dy == 0.0, 1.0, dy)
+    centres_x = ox + (np.arange(nx) + 0.5) * cell
+    for j in range(ny):
+        y = oy + (j + 0.5) * cell
+        crosses = (yi > y) != (yj > y)
+        if not crosses.any():
+            continue
+        xs = np.sort((xi + (y - yi) * (xj - xi) / safe_dy)[crosses])
+        for a, b in zip(xs[0::2], xs[1::2]):
+            mask[(centres_x > a) & (centres_x < b), j] = True
+    # the cells the edges pass through
+    for (x0, y0), (x1, y1) in zip(poly, q):
+        n = int(np.ceil(np.hypot(x1 - x0, y1 - y0) / (cell / 4))) + 1
+        t = np.linspace(0.0, 1.0, n)
+        ii = np.floor((x0 + t * (x1 - x0) - ox) / cell).astype(int)
+        jj = np.floor((y0 + t * (y1 - y0) - oy) / cell).astype(int)
+        mask[ii, jj] = True
+    return ox, oy, mask
 
 
 def disc_max(grid, radius):
