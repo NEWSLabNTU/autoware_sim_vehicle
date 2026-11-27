@@ -707,3 +707,99 @@ def test_ndt_samples_the_align_yaw_around_a_guess_better_than_its_threshold():
     ipe = params(doc)["initial_pose_estimation"]
     assert ipe["yaw_prior_variance_threshold"] == 0.01
     assert float(arg_default(read(LAUNCH), "gnss_particle_yaw_variance")) < 0.01
+
+
+# --- the compare-map filter's z band, an argument (scensim issue 180 step B v2) -------------
+# compare_map_z_ratio is VoxelBasedCompareMapFilter's downsize_ratio_z_axis: the map's z leaf and
+# the |dz| test are distance_threshold x the ratio (0.5 x 0.6 = 0.3 m today). On a map whose road
+# is at its true height (issue 198) a 0.3 m band leaves a 35 cm boulder about 5 cm of points.
+
+def _filter_file(path, ratio="0.6", threshold="0.5"):
+    path.write_text("/**:\n  ros__parameters:\n    down_sample_voxel_size: 0.1\n"
+                    f"    distance_threshold: {threshold}\n    downsize_ratio_z_axis: {ratio}\n"
+                    "    use_dynamic_map_loading: false\n")
+    return path
+
+
+def _ratio_env(tmp_path):
+    env = dict(os.environ, ROS_HOME=str(tmp_path / "ros_home"))
+    return env
+
+
+def map_filter_param_env(env, *args):
+    out = subprocess.run([sys.executable, str(FILTER), *map(str, args)],
+                         capture_output=True, text=True, env=env)
+    return out.returncode, out.stdout, out.stderr
+
+
+def test_the_compare_map_z_ratio_at_the_files_own_value_keeps_the_file(tmp_path):
+    env = _ratio_env(tmp_path)
+    static, dynamic = _filter_file(tmp_path / "s.yaml"), _filter_file(tmp_path / "d.yaml")
+    town = tmp_path / "Town01"
+    town.mkdir()
+    for args in ((), ("--z-ratio", "0.6"), ("--z-ratio", "0.60")):
+        assert map_filter_param_env(env, *args, town, static, dynamic) == (0, str(static), "")
+    assert not (tmp_path / "ros_home").exists()      # nothing written for the default
+
+
+def test_another_compare_map_z_ratio_writes_a_copy_with_only_that_changed(tmp_path):
+    env = _ratio_env(tmp_path)
+    static = _filter_file(tmp_path / "s.yaml")
+    dynamic = _filter_file(tmp_path / "d.yaml")
+    town = tmp_path / "Town01"
+    town.mkdir()
+    code, out, err = map_filter_param_env(env, "--z-ratio", "0.2", town, static, dynamic)
+    assert code == 0 and not err
+    copy = Path(out)
+    assert copy.is_file() and str(copy).startswith(str(tmp_path / "ros_home"))
+    assert copy.name == static.name
+    src, new = static.read_text().splitlines(), copy.read_text().splitlines()
+    changed = [(a, b) for a, b in zip(src, new) if a != b]
+    assert len(src) == len(new) and changed == [("    downsize_ratio_z_axis: 0.6",
+                                                 "    downsize_ratio_z_axis: 0.2")]
+    # the same arguments name the same file (the launch's log line and its parameter agree)
+    assert map_filter_param_env(env, "--z-ratio", "0.2", town, static, dynamic)[1] == out
+    # another source or ratio, another file
+    assert map_filter_param_env(env, "--z-ratio", "0.3", town, static, dynamic)[1] != out
+
+
+def test_the_log_line_names_the_mode_the_file_the_ratio_and_the_band(tmp_path):
+    env = _ratio_env(tmp_path)
+    static = _filter_file(tmp_path / "s.yaml")
+    dynamic = _filter_file(tmp_path / "d.yaml")
+    town = tmp_path / "Town01"
+    town.mkdir()
+    for ratio, band in (("0.6", "0.30"), ("0.2", "0.10")):
+        code, out, err = map_filter_param_env(env, "--mode", "--z-ratio", ratio, town, static,
+                                              dynamic)
+        picked = map_filter_param_env(env, "--z-ratio", ratio, town, static, dynamic)[1]
+        assert code == 0 and not err
+        assert out.startswith("compare-map filter: static map loading")
+        assert f"z ratio {float(ratio)} (band {band} m)" in out
+        assert out.endswith(f"file {picked}")
+
+
+def test_a_compare_map_z_ratio_outside_zero_to_one_is_refused_by_name(tmp_path):
+    env = _ratio_env(tmp_path)
+    static = _filter_file(tmp_path / "s.yaml")
+    dynamic = _filter_file(tmp_path / "d.yaml")
+    for bad in ("0", "-0.2", "1.5", "nan", "inf", "abc", ""):
+        code, out, err = map_filter_param_env(env, "--z-ratio", bad, tmp_path, static, dynamic)
+        assert code == 2 and not out and "compare_map_z_ratio" in err, (bad, code, out, err)
+    assert map_filter_param_env(env, "--z-ratio", "1", tmp_path, static, dynamic)[0] == 0
+
+
+def test_the_launches_take_compare_map_z_ratio_defaulting_to_the_files_value():
+    cmd = "$(find-pkg-prefix autoware_sim_profile)/lib/autoware_sim_profile/pointcloud_map_filter_param"
+    for name in (LAUNCH, "launch/autoware-2.0.0.launch.xml"):
+        launch = (PROFILE / name).read_text()
+        assert arg_default(launch, "compare_map_z_ratio") == "0.6", name
+        assert f"{cmd} --mode --z-ratio $(var compare_map_z_ratio) $(var map_path) " in launch, name
+        assert f"{cmd} --z-ratio $(var compare_map_z_ratio) $(var map_path) " in launch, name
+    # the default changes nothing: both files the launch picks from carry 0.6
+    rel = "perception/object_recognition/detection/pointcloud_filter/pointcloud_map_filter.param.yaml"
+    assert params(yaml.safe_load((PROFILE / "config" / rel).read_text()))[
+        "downsize_ratio_z_axis"] == 0.6
+    up15 = UPSTREAM / "config" / rel
+    if up15.is_file():
+        assert params(yaml.safe_load(up15.read_text()))["downsize_ratio_z_axis"] == 0.6
