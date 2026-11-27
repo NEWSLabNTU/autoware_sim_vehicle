@@ -14,11 +14,12 @@
     ndt_enabled: $(var ndt_enabled)
     stop_check_enabled: $(var stop_check_enabled)
 
-    # from gnss
+    # from gnss: the align's particles spread in x and y as the receiver errs (the profile's
+    # gnss_particle_variance, scensim issue 195 L1d; Autoware's 1.0 is an ordinary receiver's)
     gnss_particle_covariance:
       [
-        1.0, 0.0, 0.0,  0.0,  0.0,  0.0,
-        0.0, 1.0, 0.0,  0.0,  0.0,  0.0,
+        $(var gnss_particle_variance), 0.0, 0.0,  0.0,  0.0,  0.0,
+        0.0, $(var gnss_particle_variance), 0.0,  0.0,  0.0,  0.0,
         0.0, 0.0, 0.01, 0.0,  0.0,  0.0,
         0.0, 0.0, 0.0,  0.01, 0.0,  0.0,
         0.0, 0.0, 0.0,  0.0,  0.01, 0.0,

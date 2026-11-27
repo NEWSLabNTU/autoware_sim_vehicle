@@ -193,6 +193,10 @@
        none, so only an explicit /api/localization/initialize does (a scenario's pose: a managed
        ego, whose agent always initializes, sets it false). -->
   <arg name="gnss_enabled" default="true" description="GNSS for the initial pose: false starts no automatic_pose_initializer"/>
+  <!-- The pose initializer's GNSS particles: their x and y variance, m^2 (scensim issue 195 L1d).
+       An RTK receiver's by default, (3 x 2 cm)^2 floored at 0.01; Autoware's 1.0 is an ordinary
+       receiver's, and on a straight a particle that far along wins the align and keeps it. -->
+  <arg name="gnss_particle_variance" default="0.01" description="pose initializer's GNSS particle variance in x and y, m^2"/>
   <arg name="sim_perception" default="true" description="selectable lidar model, fusion-only traffic lights"/>
   <arg name="sim_system" default="true" description="simulation component-state topics, MRM params, diagnostic graph"/>
   <!-- MPC's automatic steering offset removal off (issue 025): it learns from collisions

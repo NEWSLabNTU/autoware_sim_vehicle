@@ -669,3 +669,23 @@ def test_the_launch_picks_the_compare_map_filter_by_the_map():
                "detection/pointcloud_filter/voxel_based_compare_map_filter.param.yaml")
     if up2.is_file():
         assert yaml.safe_load(up2.read_text())["/**"]["ros__parameters"]["use_dynamic_map_loading"]
+
+
+# scensim issue 195 L1d: the pose initializer's GNSS particles spread as the receiver errs. With
+# Autoware's 1 m^2 (an ordinary receiver's) a particle 1.6 m along a straight won the align and
+# kept its offset: NDT's score is flat along the road.
+def test_gnss_particle_spread_is_an_argument_defaulting_to_an_rtk_receivers():
+    launch = read(LAUNCH)
+    assert arg_default(launch, "gnss_particle_variance") == "0.01"
+
+
+def test_pose_initializer_takes_the_gnss_particle_variance_in_x_and_y_only():
+    text = read("config/localization/pose_initializer.param.yaml")
+    doc = yaml.safe_load(text.replace("$(var gnss_particle_variance)", "0.25"))
+    cov = params(doc)["gnss_particle_covariance"]
+    assert len(cov) == 36
+    assert (cov[0], cov[7]) == (0.25, 0.25)
+    assert (cov[14], cov[21], cov[28], cov[35]) == (0.01, 0.01, 0.01, 10.0)
+    assert sum(1 for v in cov if v not in (0.0,)) == 6
+    # the pose it outputs keeps upstream's covariance
+    assert params(doc)["output_pose_covariance"][0] == 1.0
