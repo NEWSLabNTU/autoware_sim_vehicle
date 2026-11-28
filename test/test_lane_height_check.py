@@ -289,7 +289,8 @@ def test_a_rock_in_the_adjacent_lane_at_the_cars_height_still_counts(tmp_path):
 def test_the_band_is_a_setting(tmp_path):
     c = checker(switchback_map(tmp_path))
     assert c.s.band == 3.0
-    wide = L.LaneHeightCheck(str(tmp_path), L.Settings.from_vehicle(VEHICLE, 0.138, band=12.0))
+    wide = L.LaneHeightCheck(str(tmp_path), L.Settings.from_vehicle(VEHICLE, 0.138, band=12.0,
+                                                                     reach=14.0))  # the leg, 13 m aside
     assert len(wide.obstacle_points(box(15.0, 13.0, 0.3, 0.30, z0=10.0), POSE0)) > 0
 
 

@@ -9,9 +9,11 @@ was never an object, and the car struck it. This node checks the lane only, agai
 - a raw lidar point (`~/input/pointcloud`, base_link) placed in the map by the EKF's pose
   (`~/input/kinematic_state`: its position and whole orientation, since base_link tilts with
   the car; scensim issue 201) is an obstacle point when it lies on a road lanelet (the map's
-  lanelet2_map.osm), 1 to 30 m ahead of base_link, outside the ego's box, within BAND m of the
-  car's height in the map (`height_band`, default 3.0: the other legs of a switchback, 10 m above
-  or below on Haruna, are no part of the car's road; the next lane, at the car's height, is), and
+  lanelet2_map.osm), 1 to 30 m ahead of base_link and at most REACH m to its side
+  (`lateral_reach`, default 6.0: the next lane either side, for cut-ins and oncoming cars),
+  outside the ego's box, within BAND m of the car's height in the map (`height_band`, default
+  3.0: the other legs of a switchback, 10 m above or below on Haruna, are no part of the car's
+  road; where they converge in height near a hairpin, the reach drops them), and
   more than h above the highest map point within about 0.5 m of it (the map's
   pointcloud_map.pcd, one file or tiles);
 - h = the car's ground clearance less 0.04 m, at least 0.05 m (`threshold`): the margin covers
@@ -55,6 +57,9 @@ MIN_POINTS = 3      # points in a detection
 FRAMES = 3          # consecutive frames before a detection is published
 TRACK_RADIUS = 1.0  # m: a detection's move between frames
 NEAR, FAR = 1.0, 30.0   # m ahead of base_link
+REACH = 6.0         # m to base_link's side (scensim issue 180: the legs the band left lay 10 to 16 m
+                    # aside; on a bend of radius R the car's own road leaves the reach sqrt(12 R) m
+                    # ahead: 30 m for R 75 m, 19 m for R 30 m)
 BAND = 3.0          # m: a point's height in the map from the car's (scensim issue 180, CL_NpH1: 96 %
                     # of Haruna's obstacle points lay on other legs, 14 m below to 45 m above; an
                     # 8.4 % grade puts the road 30 m ahead 2.5 m from the car)
@@ -73,17 +78,17 @@ def threshold(clearance, margin=MARGIN, floor=FLOOR):
 
 
 class Settings:
-    def __init__(self, h, front, rear, half_width, band=BAND):
+    def __init__(self, h, front, rear, half_width, band=BAND, reach=REACH):
         self.h = h
         self.front, self.rear, self.half_width = front, rear, half_width
-        self.band = band
+        self.band, self.reach = band, reach
 
     @classmethod
-    def from_vehicle(cls, vi, clearance, band=BAND):
+    def from_vehicle(cls, vi, clearance, band=BAND, reach=REACH):
         """`vi`: Autoware's vehicle_info parameters (base_link at the rear axle)."""
         front = vi["wheel_base"] + vi["front_overhang"]
         half = (vi["wheel_tread"] + vi["left_overhang"] + vi["right_overhang"]) / 2
-        return cls(threshold(clearance), front, vi["rear_overhang"], half, band)
+        return cls(threshold(clearance), front, vi["rear_overhang"], half, band, reach)
 
 
 # --- the map ---------------------------------------------------------------------------------
@@ -336,7 +341,7 @@ class LaneHeightCheck:
         if len(p) == 0:
             return np.zeros((0, 3))
         s = self.s
-        k = (p[:, 0] > NEAR) & (p[:, 0] < FAR)
+        k = (p[:, 0] > NEAR) & (p[:, 0] < FAR) & (np.abs(p[:, 1]) <= s.reach)
         ego = ((p[:, 0] > -s.rear - EGO_MARGIN) & (p[:, 0] < s.front + EGO_MARGIN)
                & (np.abs(p[:, 1]) < s.half_width + EGO_MARGIN))
         m = to_map(p[k & ~ego], pose)
@@ -485,7 +490,8 @@ def _make_node():
             vi = {k: float(get(k)) for k in ("wheel_base", "front_overhang", "rear_overhang",
                                              "wheel_tread", "left_overhang", "right_overhang")}
             band = float(get("height_band")) if self.has_parameter("height_band") else BAND
-            settings = Settings.from_vehicle(vi, float(get("ground_clearance")), band)
+            reach = float(get("lateral_reach")) if self.has_parameter("lateral_reach") else REACH
+            settings = Settings.from_vehicle(vi, float(get("ground_clearance")), band, reach)
             t0 = time.monotonic()
             self.check = LaneHeightCheck(str(get("map_path")), settings)
             self.persist = Persistence()
@@ -494,6 +500,7 @@ def _make_node():
             self.get_logger().info(
                 f"h {settings.h:.3f} m (clearance {float(get('ground_clearance')):.3f} m less "
                 f"{MARGIN} m, at least {FLOOR} m); height band {settings.band:g} m; "
+                f"lateral reach {settings.reach:g} m; "
                 f"{len(self.check.lanes.paths)} road lanelets; "
                 f"map loaded in {time.monotonic() - t0:.1f} s")
             self.out = self.create_publisher(PointCloud2, "~/output/pointcloud", 1)
