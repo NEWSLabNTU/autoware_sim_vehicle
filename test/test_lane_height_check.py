@@ -754,3 +754,125 @@ def test_the_lanes_raster_agrees_with_the_exact_polygon_away_from_its_edges():
     on = np.c_[28.25 * np.cos(a[1:-1]), 28.25 * np.sin(a[1:-1])]
     assert lanes.contains(on).all()
     assert lanes.contains(left[5:10]).all() and lanes.contains(right[5:10]).all()
+
+
+# --- the reach along the route (scensim issue 180, 2026-11-28: R1 to R7) ---------------------
+
+def arc_path(points, step=0.5):
+    """A polyline through `points` [(x, y, z)], resampled every `step` m: a planned trajectory."""
+    pts = np.asarray(points, float)
+    out = [pts[0]]
+    for a, b in zip(pts[:-1], pts[1:]):
+        n = max(1, int(np.ceil(np.linalg.norm(b[:2] - a[:2]) / step)))
+        out += [a + (b - a) * k / n for k in range(1, n + 1)]
+    return np.array(out)
+
+
+def hairpin(radius=10.0, straight=10.0):
+    """The centreline of a hairpin: +x to x = straight, a half circle of `radius` about
+    (straight, radius), then -x back to x = 0."""
+    a = np.linspace(-np.pi / 2, np.pi / 2, 64)
+    turn = np.c_[straight + radius * np.cos(a), radius + radius * np.sin(a), 0.0 * a]
+    return np.r_[[[-5.0, 0.0, 0.0]], turn, [[0.0, 2 * radius, 0.0]]]
+
+
+def hairpin_map(tmp_path, radius=10.0):
+    centre = arc_path(hairpin(radius), 1.0)
+    d = np.gradient(centre[:, :2], axis=0)
+    n = np.c_[-d[:, 1], d[:, 0]] / np.linalg.norm(d, axis=1)[:, None]
+    left, right = centre[:, :2] + 3.5 * n, centre[:, :2] - 3.5 * n
+    write_osm(tmp_path / "lanelet2_map.osm", [("road", [tuple(p) for p in left],
+                                                [tuple(p) for p in right])])
+    xs, ys = np.meshgrid(np.arange(-8, 30, 0.2), np.arange(-6, 2 * radius + 6, 0.2))
+    write_pcd(tmp_path / "pointcloud_map.pcd", np.c_[xs.ravel(), ys.ravel(), 0.0 * xs.ravel()])
+    return tmp_path, arc_path(hairpin(radius))
+
+
+def on_hairpin(arc, radius=10.0, straight=10.0, x0=2.0):
+    """The point `arc` m along the hairpin's centreline from a car at (x0, 0)."""
+    if arc <= straight - x0:
+        return x0 + arc, 0.0
+    t = (arc - (straight - x0)) / radius - np.pi / 2
+    return straight + radius * np.cos(t), radius + radius * np.sin(t)
+
+
+def test_r1_a_rock_on_a_hairpin_beyond_base_links_reach_counts_along_the_route(tmp_path):
+    d, path = hairpin_map(tmp_path)
+    x, y = on_hairpin(26.0)                      # 26 m of arc ahead, about 12 m to the side
+    assert y > 6.0
+    c = checker(d)
+    car = pose(x=2.0)
+    cloud = box(x - 2.0, y, 0.3, 0.15)          # base_link at (2, 0), level: map less (2, 0)
+    assert len(c.obstacle_points(cloud, car)) == 0                       # base_link's reach
+    assert c.last_reach == "base_link"
+    pts = c.obstacle_points(cloud, car, trajectory=path, trajectory_age=0.1)
+    assert len(pts) > 0 and np.all(np.hypot(pts[:, 0] - x, pts[:, 1] - y) < 0.4)
+    assert c.last_reach == "route"
+
+
+def test_r2_another_leg_aside_the_route_is_ignored(tmp_path):
+    d = flat_legs_map(tmp_path)
+    path = arc_path([(-5.0, 0.0, 0.0), (60.0, 0.0, 0.0)])
+    c = checker(d)
+    assert len(c.obstacle_points(box(15.0, 12.0, 0.3, 0.30), POSE0, trajectory=path)) == 0
+
+
+def test_r3_a_rock_in_the_next_lane_counts_along_the_route(tmp_path):
+    d = flat_legs_map(tmp_path)
+    path = arc_path([(-5.0, 0.0, 0.0), (60.0, 0.0, 0.0)])
+    c = checker(d)
+    for y in (3.5, -3.5):
+        assert len(c.obstacle_points(box(15.0, y, 0.3, 0.15), POSE0, trajectory=path)) > 0, y
+
+
+def test_r4_the_band_follows_the_trajectorys_height_on_a_steep_grade(tmp_path):
+    z = lambda x, y: 0.15 * x                      # 15 %: the road 28 m on is 4.2 m up
+    c = checker(straight_map(tmp_path, z))
+    car = dict(x=0.0, y=1.0, z=0.0, pitch=-math.atan(0.15))
+    # 0.30 m: on a 15 % grade the reference (the highest map point within 0.5 m) stands 0.075 m
+    # over the rock's foot, so a 0.15 m rock is under h there; the band, not h, is tested here
+    rock = box(28.0, 1.0, 0.3, 0.30, z0=float(z(28.0, 1.0)))
+    cloud = seen_from(rock, **car)
+    assert len(c.obstacle_points(cloud, pose(**car))) == 0            # the car's band: out
+    path = arc_path([(-5.0, 1.0, -0.75), (60.0, 1.0, 9.0)])
+    assert len(c.obstacle_points(cloud, pose(**car), trajectory=path)) > 0
+
+
+@pytest.mark.parametrize("why", ["none", "stale", "off"])
+def test_r5_without_a_usable_trajectory_the_reach_is_base_links(tmp_path, why):
+    d, path = hairpin_map(tmp_path)
+    x, y = on_hairpin(26.0)
+    c = checker(d)
+    car = pose(x=2.0, y=3.0 if why == "off" else 0.0)
+    cloud = box(x - 2.0, y - (3.0 if why == "off" else 0.0), 0.3, 0.15)
+    kw = {"none": {}, "stale": {"trajectory": path, "trajectory_age": 1.5},
+          "off": {"trajectory": path, "trajectory_age": 0.1}}[why]
+    assert len(c.obstacle_points(cloud, car, **kw)) == 0
+    assert c.last_reach == "base_link"
+
+
+def test_r6_nothing_behind_base_link_or_beyond_30_m_of_arc_is_in_reach(tmp_path):
+    d, path = hairpin_map(tmp_path)
+    c = checker(d)
+    car = pose(x=2.0)
+    behind = box(-3.0 - 2.0, 0.0, 0.3, 0.30)      # on the trajectory, 5 m behind base_link
+    assert len(c.obstacle_points(behind, car, trajectory=path)) == 0
+    x, y = on_hairpin(34.0)                      # 34 m of arc ahead
+    assert len(c.obstacle_points(box(x - 2.0, y, 0.3, 0.30), car, trajectory=path)) == 0
+
+
+def test_r7_a_rock_the_path_swerves_around_still_counts(tmp_path):
+    """Behaviour path avoidance shifts the trajectory around a rock. A rock 2 m off a path
+    shifted 2.5 m is 2 m from its nearest point and counts. A shift beyond the reach (the rock
+    more than 6 m off the shifted path) leaves it out: the car then passes more than 6 m from
+    it, wider than its own width and the next lane, so nothing it does there meets the rock."""
+    d = flat_legs_map(tmp_path)
+    c = checker(d)
+
+    def shifted(s):
+        return arc_path([(-5.0, 0.0, 0.0), (10.0, 0.0, 0.0), (15.0, s, 0.0), (21.0, s, 0.0),
+                         (26.0, 0.0, 0.0), (60.0, 0.0, 0.0)])
+    rock = box(18.0, 0.5, 0.3, 0.15)             # 2 m off the 2.5 m shift
+    assert len(c.obstacle_points(rock, POSE0, trajectory=shifted(2.5))) > 0
+    far = box(18.0, -0.5, 0.3, 0.15)             # 6.5 m off a 6 m shift
+    assert len(c.obstacle_points(far, POSE0, trajectory=shifted(6.0))) == 0
