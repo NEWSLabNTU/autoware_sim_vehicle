@@ -9,13 +9,21 @@ was never an object, and the car struck it. This node checks the lane only, agai
 - a raw lidar point (`~/input/pointcloud`, base_link) placed in the map by the EKF's pose
   (`~/input/kinematic_state`: its position and whole orientation, since base_link tilts with
   the car; scensim issue 201) is an obstacle point when it lies on a road lanelet (the map's
-  lanelet2_map.osm), 1 to 30 m ahead of base_link and at most REACH m to its side
+  lanelet2_map.osm), in reach along the route (below), else 1 to 30 m ahead of base_link and
+  at most REACH m to its side
   (`lateral_reach`, default 6.0: the next lane either side, for cut-ins and oncoming cars),
   outside the ego's box, within BAND m of the car's height in the map (`height_band`, default
   3.0: the other legs of a switchback, 10 m above or below on Haruna, are no part of the car's
   road; where they converge in height near a hairpin, the reach drops them), and
   more than h above the highest map point within about 0.5 m of it (the map's
   pointcloud_map.pcd, one file or tiles);
+- in reach along the route (scensim issue 180, 2026-11-28): with the motion velocity planner's
+  input trajectory (`~/input/trajectory`, its geometry upstream of the planner, so the check's
+  output cannot change it), a point is in reach when its nearest trajectory point lies 1 to 30 m
+  of arc ahead of base_link's projection, it is at most REACH m from the trajectory, and within
+  BAND m of that point's height. So a hairpin's own road stays in reach. base_link's reach is
+  the fallback, and the status names which: no trajectory yet, one older than TRAJ_MAX_AGE
+  against the cloud, or base_link more than TRAJ_MAX_OFF from it;
 - h = the car's ground clearance less 0.04 m, at least 0.05 m (`threshold`): the margin covers
   the EKF's height error and the map road's spread. The clearance is the spec's
   (body.ground_clearance, in the car's generated body.param.yaml);
@@ -64,6 +72,8 @@ BAND = 3.0          # m: a point's height in the map from the car's (scensim iss
                     # of Haruna's obstacle points lay on other legs, 14 m below to 45 m above; an
                     # 8.4 % grade puts the road 30 m ahead 2.5 m from the car)
 EGO_MARGIN = 0.2    # m around the ego's box
+TRAJ_MAX_AGE = 1.0  # s: an older trajectory gives base_link's reach (scensim issue 180)
+TRAJ_MAX_OFF = 2.0  # m: base_link farther than this from the trajectory gives base_link's reach
 HOLD_REACH = 1.5    # m past the front bumper: the mask's margin and the bonnet's shadow (issue 182
                     # measured the lidar's blind zone to 4.9 m from base_link, 1.2 m past the bumper)
 REF_CELL = 0.2      # m: the map's reference grid
@@ -334,20 +344,93 @@ class LaneHeightCheck:
         pts = map_points(map_path)
         self.ref = Reference(pts[self.lanes.near(pts[:, :2], LANE_PAD)])
 
-    def obstacle_points(self, cloud, pose):
+    last_reach = "base_link"
+
+    def obstacle_points(self, cloud, pose, trajectory=None, trajectory_age=0.0):
         """The cloud's obstacle points in the map. `cloud`: N x 3 in base_link; `pose`: base_link
-        in the map, (x, y, z, qx, qy, qz, qw)."""
+        in the map, (x, y, z, qx, qy, qz, qw); `trajectory`: the planned path, M x 3 in the map
+        (x, y, z), `trajectory_age` s older than the cloud. `last_reach` says which reach was
+        used: "route" or "base_link" (scensim issue 180)."""
         p = np.asarray(cloud, float)
+        route = usable_route(trajectory, trajectory_age, pose)
+        self.last_reach = "base_link" if route is None else "route"
         if len(p) == 0:
             return np.zeros((0, 3))
         s = self.s
-        k = (p[:, 0] > NEAR) & (p[:, 0] < FAR) & (np.abs(p[:, 1]) <= s.reach)
         ego = ((p[:, 0] > -s.rear - EGO_MARGIN) & (p[:, 0] < s.front + EGO_MARGIN)
                & (np.abs(p[:, 1]) < s.half_width + EGO_MARGIN))
-        m = to_map(p[k & ~ego], pose)
-        m = m[np.abs(m[:, 2] - pose[2]) <= s.band]
+        if route is None:
+            k = (p[:, 0] > NEAR) & (p[:, 0] < FAR) & (np.abs(p[:, 1]) <= s.reach)
+            m = to_map(p[k & ~ego], pose)
+            m = m[np.abs(m[:, 2] - pose[2]) <= s.band]
+        else:
+            m = to_map(p[~ego], pose)
+            m = m[route.in_reach(m, s.reach, s.band)]
         m = m[self.lanes.contains(m[:, :2])]
         return m[m[:, 2] - self.ref.at(m[:, :2]) > s.h]
+
+
+class Route:
+    """The planned trajectory from base_link's projection on (scensim issue 180): its segments
+    from REACH before that point to FAR + REACH after it, and each one's arc from it."""
+
+    def __init__(self, path, pose, reach=REACH):
+        path = np.asarray(path, float)
+        a, b = path[:-1], path[1:]
+        seg = b[:, :2] - a[:, :2]
+        ln = np.hypot(seg[:, 0], seg[:, 1])
+        keep = ln > 1e-9
+        a, b, seg, ln = a[keep], b[keep], seg[keep], ln[keep]
+        s_at = np.r_[0.0, np.cumsum(ln)][:-1]
+        d, t = _to_segments(np.asarray(pose[:2], float)[None, :], a, seg, ln)
+        j = int(np.argmin(d[0]))
+        self.off = float(d[0, j])
+        s0 = s_at[j] + t[0, j] * ln[j]
+        w = (s_at + ln >= s0 - reach) & (s_at <= s0 + FAR + reach)
+        self.a, self.b, self.seg, self.ln = a[w], b[w], seg[w], ln[w]
+        self.s = s_at[w] - s0   # each segment's start, m of arc from base_link's projection
+
+    def in_reach(self, pts, reach, band):
+        """Which map points are 1 to 30 m of arc ahead, at most `reach` m from the trajectory and
+        within `band` m of its height there."""
+        out = np.zeros(len(pts), bool)
+        if not len(pts) or not len(self.a):
+            return out
+        lo = np.minimum(self.a[:, :2], self.b[:, :2]).min(axis=0) - reach
+        hi = np.maximum(self.a[:, :2], self.b[:, :2]).max(axis=0) + reach
+        box = np.all((pts[:, :2] >= lo) & (pts[:, :2] <= hi), axis=1)
+        idx = np.flatnonzero(box)
+        for k in range(0, len(idx), 8192):
+            i = idx[k:k + 8192]
+            d, t = _to_segments(pts[i, :2], self.a, self.seg, self.ln)
+            j = np.argmin(d, axis=1)
+            r = np.arange(len(i))
+            dj, tj = d[r, j], t[r, j]
+            arc = self.s[j] + tj * self.ln[j]
+            z = self.a[j, 2] + tj * (self.b[j, 2] - self.a[j, 2])
+            out[i] = ((arc > NEAR) & (arc < FAR) & (dj <= reach)
+                      & (np.abs(pts[i, 2] - z) <= band))
+        return out
+
+
+def _to_segments(p, a, seg, ln):
+    """Each point's xy distance to each segment, and the segment's parameter at its nearest
+    point (0 to 1): two arrays N x M."""
+    rel = p[:, None, :] - a[None, :, :2]
+    t = np.clip((rel[..., 0] * seg[None, :, 0] + rel[..., 1] * seg[None, :, 1])
+                / (ln[None, :] ** 2), 0.0, 1.0)
+    dx = rel[..., 0] - t * seg[None, :, 0]
+    dy = rel[..., 1] - t * seg[None, :, 1]
+    return np.hypot(dx, dy), t
+
+
+def usable_route(trajectory, age, pose):
+    """The Route, or None for base_link's reach: no trajectory (or under 2 points), one older
+    than TRAJ_MAX_AGE, or base_link farther than TRAJ_MAX_OFF from it."""
+    if trajectory is None or len(trajectory) < 2 or age is None or age > TRAJ_MAX_AGE:
+        return None
+    r = Route(trajectory, pose)
+    return r if r.off <= TRAJ_MAX_OFF and len(r.a) else None
 
 
 def detections(pts, cell=CELL, min_points=MIN_POINTS):
@@ -437,10 +520,10 @@ class MaskHold:
         return [d for d, _ in keep]
 
 
-def step(check, persistence, hold, cloud, pose):
+def step(check, persistence, hold, cloud, pose, trajectory=None, trajectory_age=0.0):
     """One frame of the node: the obstacle points, the detections, and the map points to
     publish (the persistent detections and the held ones)."""
-    pts = check.obstacle_points(cloud, pose)
+    pts = check.obstacle_points(cloud, pose, trajectory, trajectory_age)
     dets = detections(pts)
     published = persistence.published(dets)
     held = hold.update(published, pose)
@@ -472,6 +555,7 @@ def from_cloud(m):
 def _make_node():
     """The node class, made on demand so the module imports without ROS (`Node` is it)."""
     import rclpy.node
+    from autoware_planning_msgs.msg import Trajectory
     from nav_msgs.msg import Odometry
     from rclpy.qos import qos_profile_sensor_data
     from sensor_msgs.msg import PointCloud2
@@ -497,6 +581,7 @@ def _make_node():
             self.persist = Persistence()
             self.hold = MaskHold(settings)
             self.pose = None
+            self.trajectory, self.trajectory_t = None, None   # map x, y, z; its stamp, s
             self.get_logger().info(
                 f"h {settings.h:.3f} m (clearance {float(get('ground_clearance')):.3f} m less "
                 f"{MARGIN} m, at least {FLOOR} m); height band {settings.band:g} m; "
@@ -506,12 +591,18 @@ def _make_node():
             self.out = self.create_publisher(PointCloud2, "~/output/pointcloud", 1)
             self.status = self.create_publisher(String, "~/debug/status", 1)
             self.create_subscription(Odometry, "~/input/kinematic_state", self.on_pose, 10)
+            self.create_subscription(Trajectory, "~/input/trajectory", self.on_trajectory, 1)
             self.create_subscription(PointCloud2, "~/input/pointcloud", self.on_cloud,
                                      qos_profile_sensor_data)
 
         def on_pose(self, m):
             q, p = m.pose.pose.orientation, m.pose.pose.position
             self.pose = (p.x, p.y, p.z, q.x, q.y, q.z, q.w)
+
+        def on_trajectory(self, m):
+            pts = [(q.pose.position.x, q.pose.position.y, q.pose.position.z) for q in m.points]
+            self.trajectory = np.array(pts, float).reshape(-1, 3)
+            self.trajectory_t = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
 
         def on_cloud(self, m):
             if self.pose is None:   # nothing to check against yet; say so (issue 180's P8)
@@ -520,13 +611,17 @@ def _make_node():
                 return
             t0 = time.monotonic()
             cloud = from_cloud(m)
-            pts, dets, pub = step(self.check, self.persist, self.hold, cloud, self.pose)
+            age = (None if self.trajectory_t is None else
+                   m.header.stamp.sec + m.header.stamp.nanosec * 1e-9 - self.trajectory_t)
+            pts, dets, pub = step(self.check, self.persist, self.hold, cloud, self.pose,
+                                  self.trajectory, age)
             local = to_base_link(pub, self.pose)
             self.out.publish(to_cloud(local, m.header.stamp, m.header.frame_id))
             self.status.publish(String(data=json.dumps({
                 "pose": True, "points": int(len(cloud)), "obstacle_points": int(len(pts)),
                 "detections": len(dets), "published_points": int(len(pub)),
-                "held": len(self.hold.held),
+                "held": len(self.hold.held), "reach": self.check.last_reach,
+                "trajectory_age": None if age is None else round(age, 3),
                 "ms": round(1000 * (time.monotonic() - t0), 2)})))
 
     return LaneHeightCheckNode

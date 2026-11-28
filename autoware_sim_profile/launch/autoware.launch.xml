@@ -587,6 +587,8 @@
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <remap from="~/input/pointcloud" to="/sensing/lidar/concatenated/pointcloud"/>
     <remap from="~/input/kinematic_state" to="/localization/kinematic_state"/>
+    <!-- the motion velocity planner's own input: the reach along the route (scensim issue 180) -->
+    <remap from="~/input/trajectory" to="/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory"/>
     <remap from="~/output/pointcloud" to="$(var lane_height_check_topic)"/>
   </node>
 
