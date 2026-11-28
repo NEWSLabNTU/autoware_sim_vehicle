@@ -253,6 +253,63 @@ def test_points_off_the_lanelets_are_ignored(tmp_path):
     assert len(c.obstacle_points(box(15.0, 9.0, 0.3, 0.30), POSE0)) == 0     # off the map
 
 
+def switchback_map(tmp_path):
+    """The car's road along +x at z 0 (two lanes, |y| < 3.5), and two other legs of the same
+    road beside it on the slope: one 10 m above (y 10 to 17), one 10 m below (y -17 to -10).
+    Haruna's switchbacks put such legs inside the check's 30 m (scensim issue 180, CL_NpH1)."""
+    xs = [float(x) for x in range(0, 101, 10)]
+    write_osm(tmp_path / "lanelet2_map.osm", [
+        ("road", [(x, 3.5) for x in xs], [(x, 0.0) for x in xs]),
+        ("road", [(x, 0.0) for x in xs], [(x, -3.5) for x in xs]),
+        ("road", [(x, 17.0) for x in xs], [(x, 10.0) for x in xs]),
+        ("road", [(x, -10.0) for x in xs], [(x, -17.0) for x in xs]),
+    ])
+    pts = np.r_[road(-5, 105, -4, 4), road(-5, 105, 9.5, 17.5, lambda x, y: 0.0 * x + 10.0),
+                road(-5, 105, -17.5, -9.5, lambda x, y: 0.0 * x - 10.0)]
+    write_pcd(tmp_path / "pointcloud_map.pcd", pts)
+    return tmp_path
+
+
+def test_a_rock_on_a_leg_10_m_above_or_below_the_car_is_ignored(tmp_path):
+    c = checker(switchback_map(tmp_path))
+    assert len(c.obstacle_points(box(15.0, 13.0, 0.3, 0.30, z0=10.0), POSE0)) == 0     # above
+    assert len(c.obstacle_points(box(15.0, -13.0, 0.3, 0.30, z0=-10.0), POSE0)) == 0   # below
+    # and the legs' own road surface, seen at grazing range, is no obstacle either
+    legs = np.r_[road(2, 30, 10.5, 16.5, lambda x, y: 0.0 * x + 10.12),
+                 road(2, 30, -16.5, -10.5, lambda x, y: 0.0 * x - 9.88)]
+    assert len(c.obstacle_points(legs, POSE0)) == 0
+
+
+def test_a_rock_in_the_adjacent_lane_at_the_cars_height_still_counts(tmp_path):
+    c = checker(switchback_map(tmp_path))
+    pts = c.obstacle_points(box(15.0, -1.75, 0.3, 0.15), POSE0)
+    assert len(pts) > 0 and np.all(np.abs(pts[:, 1] + 1.75) < 0.3)
+
+
+def test_the_band_is_a_setting(tmp_path):
+    c = checker(switchback_map(tmp_path))
+    assert c.s.band == 3.0
+    wide = L.LaneHeightCheck(str(tmp_path), L.Settings.from_vehicle(VEHICLE, 0.138, band=12.0))
+    assert len(wide.obstacle_points(box(15.0, 13.0, 0.3, 0.30, z0=10.0), POSE0)) > 0
+
+
+def test_a_car_pitched_on_harunas_grade_still_sees_its_own_road_ahead(tmp_path):
+    """Haruna's steepest (pitch p99 4.82 deg, issue 201: an 8.4 % grade), both ways: a rock 28 m
+    ahead stands 2.5 m above or below the car and is still inside the band."""
+    g0 = math.tan(math.radians(4.82))
+    for g in (g0, -g0):
+        tmp = tmp_path / f"g{g:+.3f}"
+        tmp.mkdir()
+        z = lambda x, y, g=g: g * x
+        c = checker(straight_map(tmp, z))
+        car = dict(x=10.0, y=1.0, z=10.0 * g, pitch=-math.atan(g))
+        ahead = road(12, 40, -3.4, 3.4, z)
+        assert len(c.obstacle_points(seen_from(ahead, **car), pose(**car))) == 0, g
+        rock = box(38.0, 1.0, 0.3, 0.15, z0=float(z(38.0, 1.0)))
+        pts = c.obstacle_points(seen_from(np.r_[ahead, rock], **car), pose(**car))
+        assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 38.0) < 0.3), g
+
+
 def test_the_range_and_the_ego_box(tmp_path):
     c = checker(straight_map(tmp_path))
     assert len(c.obstacle_points(box(35.0, 1.0, 0.3, 0.3), POSE0)) == 0      # beyond 30 m
