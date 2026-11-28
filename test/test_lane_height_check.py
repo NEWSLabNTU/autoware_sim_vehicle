@@ -309,6 +309,145 @@ def test_a_flicker_elsewhere_is_never_published():
     assert out == [0] * 6
 
 
+# --- holding a detection the ego mask hides (scensim issue 180, R180_B1) --------------------
+#
+# The node drops every point inside the ego box grown by EGO_MARGIN, its own body, and the roof
+# lidar cannot see low points just past the bumper (the bonnet's shadow). A rock the car stops
+# that close to disappears, obstacle_stop's pointcloud hold runs out, and the car drives over it.
+# A published detection that vanishes just ahead of the car is held at its map position instead.
+
+FRONT = 3.005 + 0.807            # VEHICLE's front bumper from base_link
+SHADOW = 1.2                     # m past the bumper the lidar cannot see low points (the bonnet's
+                                 # shadow: issue 182's blind zone ends 4.9 m from base_link)
+
+
+def lidar_sees(local):
+    """A base_link cloud as the roof lidar returns it: no low point in the bonnet's shadow."""
+    local = np.asarray(local, float).reshape(-1, 3)
+    hidden = (local[:, 0] > 0) & (local[:, 0] < FRONT + SHADOW) & (local[:, 2] < 0.5)
+    return local[~hidden]
+
+
+def rock_at(x, y, height=0.15):
+    return box(x, y, 0.3, height)
+
+
+def drive(c, poses, scene, frames_per_pose=1):
+    """The node's loop over `poses` (pose() tuples), the lidar seeing `scene` (map points) from
+    each; returns the published map points per frame."""
+    persist, hold = L.Persistence(), L.MaskHold(c.s)
+    out = []
+    for p in poses:
+        car = dict(zip(("x", "y", "z"), p[:3]))
+        q = p[3:]
+        yaw = math.atan2(2 * (q[3] * q[2] + q[0] * q[1]), 1 - 2 * (q[1] ** 2 + q[2] ** 2))
+        pitch = math.asin(max(-1.0, min(1.0, 2 * (q[3] * q[1] - q[2] * q[0]))))
+        roll = math.atan2(2 * (q[3] * q[0] + q[1] * q[2]), 1 - 2 * (q[0] ** 2 + q[1] ** 2))
+        cloud = lidar_sees(seen_from(scene, yaw=yaw, pitch=pitch, roll=roll, **car))
+        for _ in range(frames_per_pose):
+            out.append(L.step(c, persist, hold, cloud, p)[2])
+    return out
+
+
+def near(pts, x, y, r=0.3):
+    return len(pts) > 0 and bool(np.all(np.hypot(pts[:, 0] - x, pts[:, 1] - y) < r))
+
+
+def approach(rock_x, gaps, y=1.0):
+    """base_link poses whose bumper stands `gaps` before the rock's near face (0.15 m before
+    its centre)."""
+    return [pose(rock_x - 0.15 - g - FRONT, y) for g in gaps]
+
+
+def test_h1_a_rock_the_car_stops_at_stays_published_while_it_stands(tmp_path):
+    c = checker(straight_map(tmp_path))
+    rock = rock_at(40.0, 1.0)
+    poses = approach(40.0, list(np.arange(10.0, 0.0, -0.25)) + [0.06]) + \
+        approach(40.0, [0.06] * 100)
+    out = drive(c, poses, rock)
+    first = next(i for i, o in enumerate(out) if len(o))
+    assert first < 10                                       # seen at range, as today
+    stand = out[-100:]
+    assert all(near(o, 40.0, 1.0) for o in stand), [len(o) for o in stand][:10]
+
+
+def test_h2_backing_off_hands_the_rock_back_to_the_ordinary_check(tmp_path):
+    c = checker(straight_map(tmp_path))
+    rock = rock_at(40.0, 1.0)
+    gaps = list(np.arange(10.0, 0.0, -0.25)) + [0.06] * 20 + list(np.arange(0.1, 2.6, 0.1))
+    out = drive(c, approach(40.0, gaps), rock)
+    i0 = next(i for i, o in enumerate(out) if len(o))
+    assert all(near(o, 40.0, 1.0) for o in out[i0:]), [len(o) for o in out[i0:]]
+    # no double count: the frame after backing off publishes no more points than one view
+    # of the rock gives
+    x_last = 40.0 - 0.15 - gaps[-1] - FRONT
+    one_view = len(L.step(c, L.Persistence(), L.MaskHold(c.s),
+                          lidar_sees(seen_from(rock, x=x_last, y=1.0)), pose(x_last, 1.0))[0])
+    assert len(out[-1]) <= one_view
+
+
+def test_h3_a_detection_never_published_is_not_held(tmp_path):
+    c = checker(straight_map(tmp_path))
+    rock = rock_at(40.0, 1.0)
+    # the rock appears 2 frames before the car is on it (fewer than FRAMES): never published
+    poses = approach(40.0, [1.0, 0.5, 0.06] + [0.06] * 20)
+    scene_frames = [rock, rock] + [np.zeros((0, 3))] * 21
+    persist, hold = L.Persistence(), L.MaskHold(c.s)
+    out = []
+    for p, sc in zip(poses, scene_frames):
+        out.append(L.step(c, persist, hold, lidar_sees(seen_from(sc, x=p[0], y=p[1])), p)[2])
+    assert all(len(o) == 0 for o in out)
+
+
+def test_h4_the_cars_own_body_is_never_published(tmp_path):
+    c = checker(straight_map(tmp_path))
+    # points on the bonnet and the bumper, always inside the mask, every frame
+    body = np.array([[FRONT - 0.3, 0.0, 0.6], [FRONT + 0.05, 0.5, 0.3], [FRONT + 0.1, -0.5, 0.25]])
+    persist, hold = L.Persistence(), L.MaskHold(c.s)
+    for k in range(50):
+        p = pose(10.0 + 0.2 * k, 1.0)
+        assert len(L.step(c, persist, hold, body, p)[2]) == 0
+
+
+def test_h5_a_held_rock_behind_the_front_bumper_is_dropped(tmp_path):
+    c = checker(straight_map(tmp_path))
+    rock = rock_at(40.0, 1.0)
+    gaps = list(np.arange(10.0, 0.0, -0.25)) + [0.06] * 10 + [-0.5, -1.0, -2.0, -3.0]
+    out = drive(c, approach(40.0, gaps), rock)
+    assert near(out[-15], 40.0, 1.0)                        # held at 0.06 m
+    assert all(len(o) == 0 for o in out[-3:])               # driven over: gone
+
+
+def test_h6_a_rock_beside_the_cars_path_is_not_held(tmp_path):
+    c = checker(straight_map(tmp_path))
+    # 1.25 m left of the car's line: clear of its half width (1.08 m) but inside the mask's
+    # margin (1.28 m), so it enters the mask's side as the car passes
+    rock = rock_at(40.0, 2.25)
+    poses = [pose(x, 1.0) for x in np.arange(20.0, 40.0, 0.4)]
+    out = drive(c, poses, rock)
+    beside = [(p, o) for p, o in zip(poses, out) if p[0] + FRONT > 40.0 + 0.3]
+    assert beside
+    for p, o in beside:     # only what the ordinary check still sees outside the mask
+        loc = L.to_base_link(o, p)
+        inside = (loc[:, 0] < FRONT + L.EGO_MARGIN) & (np.abs(loc[:, 1]) < c.s.half_width + L.EGO_MARGIN)
+        assert not inside.any()
+
+
+def test_h7_held_points_follow_the_whole_rotation(tmp_path):
+    g = 0.08
+    z = lambda x, y: g * x
+    c = checker(straight_map(tmp_path, z))
+    rock = rock_at(40.0, 1.0)
+    rock[:, 2] += z(40.0, 1.0)
+    xs = [40.0 - 0.15 - gap - FRONT for gap in list(np.arange(10.0, 0.0, -0.25)) + [0.06] * 30]
+    poses = [pose(x, 1.0, g * x, pitch=-math.atan(g)) for x in xs]
+    out = drive(c, poses, rock)
+    assert all(near(o, 40.0, 1.0) for o in out[-30:])
+    # and placed back into base_link by the same pose, it is where the lidar saw it
+    last = L.to_base_link(out[-1], poses[-1])
+    assert np.all(last[:, 0] > FRONT) and np.all(last[:, 0] < FRONT + 0.5)
+
+
 # --- the node --------------------------------------------------------------------------------
 
 def test_the_node_publishes_a_persistent_rock(tmp_path):
