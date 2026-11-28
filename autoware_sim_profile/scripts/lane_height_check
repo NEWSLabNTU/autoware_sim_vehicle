@@ -7,7 +7,8 @@ even when it is taller than the car's clearance: a 15 cm rock under a Model 3's 
 was never an object, and the car struck it. This node checks the lane only, against the map:
 
 - a raw lidar point (`~/input/pointcloud`, base_link) placed in the map by the EKF's pose
-  (`~/input/kinematic_state`) is an obstacle point when it lies on a road lanelet (the map's
+  (`~/input/kinematic_state`: its position and whole orientation, since base_link tilts with
+  the car; scensim issue 201) is an obstacle point when it lies on a road lanelet (the map's
   lanelet2_map.osm), 1 to 30 m ahead of base_link, outside the ego's box, and more than h above
   the highest map point within about 0.5 m of it (the map's pointcloud_map.pcd, one file or
   tiles);
@@ -27,7 +28,8 @@ obstacle cloud. The node reads sensors and the map only, never a simulator's tru
         --params-file <car>_description/config/body.param.yaml
 
 `~/debug/status` (std_msgs/String, JSON) reports each frame: points in, on the lane, obstacle
-points, detections, published points and the processing time in ms.
+points, detections, published points and the processing time in ms; before the EKF's first pose,
+`"pose": false` and the points in (it can check nothing yet).
 """
 
 import glob
@@ -284,6 +286,29 @@ def label8(mask):
 
 # --- the check -------------------------------------------------------------------------------
 
+def rotation(qx, qy, qz, qw):
+    """The 3 x 3 rotation of a unit quaternion (base_link to the map)."""
+    n = math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw) or 1.0
+    x, y, z, w = qx / n, qy / n, qz / n, qw / n
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                     [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                     [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+
+
+def to_map(pts, pose):
+    """base_link points into the map. `pose`: base_link in the map, (x, y, z, qx, qy, qz, qw),
+    the EKF's position and orientation as is: base_link tilts with the car, so a pitched or
+    rolled car's points need the whole rotation, not the yaw alone (scensim issue 201)."""
+    p = np.asarray(pts, float).reshape(-1, 3)
+    return p @ rotation(*pose[3:7]).T + np.asarray(pose[:3], float)
+
+
+def to_base_link(pts, pose):
+    """Map points back into base_link: `to_map`'s inverse."""
+    p = np.asarray(pts, float).reshape(-1, 3)
+    return (p - np.asarray(pose[:3], float)) @ rotation(*pose[3:7])
+
+
 class LaneHeightCheck:
     def __init__(self, map_path, settings):
         self.s = settings
@@ -293,7 +318,7 @@ class LaneHeightCheck:
 
     def obstacle_points(self, cloud, pose):
         """The cloud's obstacle points in the map. `cloud`: N x 3 in base_link; `pose`: base_link
-        in the map, (x, y, z, yaw)."""
+        in the map, (x, y, z, qx, qy, qz, qw)."""
         p = np.asarray(cloud, float)
         if len(p) == 0:
             return np.zeros((0, 3))
@@ -301,10 +326,7 @@ class LaneHeightCheck:
         k = (p[:, 0] > NEAR) & (p[:, 0] < FAR)
         ego = ((p[:, 0] > -s.rear - EGO_MARGIN) & (p[:, 0] < s.front + EGO_MARGIN)
                & (np.abs(p[:, 1]) < s.half_width + EGO_MARGIN))
-        p = p[k & ~ego]
-        x, y, z, yaw = pose
-        c, sn = math.cos(yaw), math.sin(yaw)
-        m = np.c_[x + c * p[:, 0] - sn * p[:, 1], y + sn * p[:, 0] + c * p[:, 1], z + p[:, 2]]
+        m = to_map(p[k & ~ego], pose)
         m = m[self.lanes.contains(m[:, :2])]
         return m[m[:, 2] - self.ref.at(m[:, :2]) > s.h]
 
@@ -402,25 +424,22 @@ def _make_node():
 
         def on_pose(self, m):
             q, p = m.pose.pose.orientation, m.pose.pose.position
-            yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-            self.pose = (p.x, p.y, p.z, yaw)
+            self.pose = (p.x, p.y, p.z, q.x, q.y, q.z, q.w)
 
         def on_cloud(self, m):
-            if self.pose is None:
+            if self.pose is None:   # nothing to check against yet; say so (issue 180's P8)
+                self.status.publish(String(data=json.dumps(
+                    {"pose": False, "points": int(m.width * m.height)})))
                 return
             t0 = time.monotonic()
             cloud = from_cloud(m)
             pts = self.check.obstacle_points(cloud, self.pose)
             dets = detections(pts)
             pub = self.persist.update(dets)
-            # back to base_link
-            x, y, z, yaw = self.pose
-            c, s = math.cos(yaw), math.sin(yaw)
-            dx, dy = pub[:, 0] - x, pub[:, 1] - y
-            local = np.c_[c * dx + s * dy, -s * dx + c * dy, pub[:, 2] - z]
+            local = to_base_link(pub, self.pose)
             self.out.publish(to_cloud(local, m.header.stamp, m.header.frame_id))
             self.status.publish(String(data=json.dumps({
-                "points": int(len(cloud)), "obstacle_points": int(len(pts)),
+                "pose": True, "points": int(len(cloud)), "obstacle_points": int(len(pts)),
                 "detections": len(dets), "published_points": int(len(pub)),
                 "ms": round(1000 * (time.monotonic() - t0), 2)})))
 
