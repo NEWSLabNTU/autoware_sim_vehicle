@@ -17,7 +17,12 @@ was never an object, and the car struck it. This node checks the lane only, agai
   (body.ground_clearance, in the car's generated body.param.yaml);
 - obstacle points are binned in 0.3 m map cells; touching cells holding at least 3 points are
   a detection; a detection present in 3 consecutive frames (each within 1 m of the last) is
-  published: its points, in base_link with the input's stamp, on `~/output/pointcloud`.
+  published: its points, in base_link with the input's stamp, on `~/output/pointcloud`;
+- a published detection that vanishes while it lies just ahead of the car (from the front
+  bumper to HOLD_REACH past it, within the car's width), where the ego mask and the bonnet's
+  shadow hide it, is held at its map position and published again each frame, until it is seen
+  again or falls behind the bumper (scensim issue 180, R180_B1: the car stopped 0.06 m before a
+  15 cm rock, lost it, and drove over it).
 
 The profile feeds `~/output/pointcloud` to the motion velocity planner alone (a node-targeted
 remap) and turns on obstacle_stop's pointcloud check; every other reader keeps the ordinary
@@ -49,6 +54,8 @@ FRAMES = 3          # consecutive frames before a detection is published
 TRACK_RADIUS = 1.0  # m: a detection's move between frames
 NEAR, FAR = 1.0, 30.0   # m ahead of base_link
 EGO_MARGIN = 0.2    # m around the ego's box
+HOLD_REACH = 1.5    # m past the front bumper: the mask's margin and the bonnet's shadow (issue 182
+                    # measured the lidar's blind zone to 4.9 m from base_link, 1.2 m past the bumper)
 REF_CELL = 0.2      # m: the map's reference grid
 REF_RADIUS = 0.5    # m: the reference is the highest map point within this
 LANE_PAD = 1.0      # m: map points kept around the lanelets
@@ -354,6 +361,11 @@ class Persistence:
         self.tracks = []   # [(centre xy, age)]
 
     def update(self, dets):
+        out = self.published(dets)
+        return np.concatenate(out) if out else np.zeros((0, 3))
+
+    def published(self, dets):
+        """This frame's published detections, as a list of their points."""
         new, out = [], []
         for d in dets:
             c = d[:, :2].mean(axis=0)
@@ -363,7 +375,65 @@ class Persistence:
             if age >= self.frames:
                 out.append(d)
         self.tracks = new
-        return np.concatenate(out) if out else np.zeros((0, 3))
+        return out
+
+
+class MaskHold:
+    """Published detections the car has come too close to see, held where they were last seen.
+
+    A detection published in the last frame and not this one is held when, by the current pose,
+    it lies just ahead of the car: its centre from the front bumper to HOLD_REACH past it, and a
+    point of it within the car's half width. A held detection is released when one published
+    this frame lies within TRACK_RADIUS of it (seen again: the ordinary check has it), when its
+    centre falls behind the front bumper (passed or driven over), or when it has been out of the
+    zone, unseen, for FRAMES frames (the car backed off and nothing is there any more)."""
+
+    def __init__(self, settings, reach=HOLD_REACH, radius=TRACK_RADIUS, frames=FRAMES):
+        self.s, self.reach, self.radius, self.frames = settings, reach, radius, frames
+        self.last = []    # last frame's published detections (map points)
+        self.held = []    # [(map points, frames out of the zone)]
+
+    def _where(self, pts, pose):
+        loc = to_base_link(pts, pose)
+        cx = float(loc[:, 0].mean())
+        ahead = self.s.front <= cx <= self.s.front + self.reach and \
+            bool((np.abs(loc[:, 1]) <= self.s.half_width).any())
+        return cx, ahead
+
+    def update(self, published, pose):
+        """`published`: this frame's published detections (map points). Returns the held
+        ones to publish beside them."""
+        seen = [d[:, :2].mean(axis=0) for d in published]
+        near = lambda d: any(np.hypot(*(d[:, :2].mean(axis=0) - c)) <= self.radius for c in seen)
+        keep = []
+        for d, out in self.held:
+            if near(d):
+                continue                      # seen again: the ordinary check publishes it
+            cx, ahead = self._where(d, pose)
+            if cx < self.s.front:
+                continue                      # behind the bumper: passed or driven over
+            out = 0 if ahead else out + 1
+            if out < self.frames:
+                keep.append((d, out))
+        for d in self.last:
+            if near(d) or any(np.hypot(*(d[:, :2].mean(axis=0) - h[:, :2].mean(axis=0)))
+                              <= self.radius for h, _ in keep):
+                continue
+            if self._where(d, pose)[1]:
+                keep.append((d, 0))
+        self.held, self.last = keep, published
+        return [d for d, _ in keep]
+
+
+def step(check, persistence, hold, cloud, pose):
+    """One frame of the node: the obstacle points, the detections, and the map points to
+    publish (the persistent detections and the held ones)."""
+    pts = check.obstacle_points(cloud, pose)
+    dets = detections(pts)
+    published = persistence.published(dets)
+    held = hold.update(published, pose)
+    out = published + held
+    return pts, dets, (np.concatenate(out) if out else np.zeros((0, 3)))
 
 
 # --- ROS -------------------------------------------------------------------------------------
@@ -411,6 +481,7 @@ def _make_node():
             t0 = time.monotonic()
             self.check = LaneHeightCheck(str(get("map_path")), settings)
             self.persist = Persistence()
+            self.hold = MaskHold(settings)
             self.pose = None
             self.get_logger().info(
                 f"h {settings.h:.3f} m (clearance {float(get('ground_clearance')):.3f} m less "
@@ -433,14 +504,13 @@ def _make_node():
                 return
             t0 = time.monotonic()
             cloud = from_cloud(m)
-            pts = self.check.obstacle_points(cloud, self.pose)
-            dets = detections(pts)
-            pub = self.persist.update(dets)
+            pts, dets, pub = step(self.check, self.persist, self.hold, cloud, self.pose)
             local = to_base_link(pub, self.pose)
             self.out.publish(to_cloud(local, m.header.stamp, m.header.frame_id))
             self.status.publish(String(data=json.dumps({
                 "pose": True, "points": int(len(cloud)), "obstacle_points": int(len(pts)),
                 "detections": len(dets), "published_points": int(len(pub)),
+                "held": len(self.hold.held),
                 "ms": round(1000 * (time.monotonic() - t0), 2)})))
 
     return LaneHeightCheckNode
