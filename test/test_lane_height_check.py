@@ -310,6 +310,38 @@ def test_a_car_pitched_on_harunas_grade_still_sees_its_own_road_ahead(tmp_path):
         assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 38.0) < 0.3), g
 
 
+def flat_legs_map(tmp_path):
+    """Four lanes at the car's height, |y| < 7 (the car's, the next one either side), and
+    another leg of the road 12 m to the side at the same height: near a hairpin, where Haruna's
+    legs converge in height (scensim issue 180: what the height band left, 10 to 16 m aside)."""
+    xs = [float(x) for x in range(0, 101, 10)]
+    write_osm(tmp_path / "lanelet2_map.osm", [
+        ("road", [(x, 7.0) for x in xs], [(x, 3.5) for x in xs]),
+        ("road", [(x, 3.5) for x in xs], [(x, 0.0) for x in xs]),
+        ("road", [(x, 0.0) for x in xs], [(x, -3.5) for x in xs]),
+        ("road", [(x, -3.5) for x in xs], [(x, -7.0) for x in xs]),
+        ("road", [(x, 15.0) for x in xs], [(x, 9.0) for x in xs]),
+    ])
+    write_pcd(tmp_path / "pointcloud_map.pcd", np.r_[road(-5, 105, -7.5, 7.5),
+                                                     road(-5, 105, 8.5, 15.5)])
+    return tmp_path
+
+
+def test_a_rock_in_the_lane_beside_at_3_5_m_counts_on_either_side(tmp_path):
+    c = checker(flat_legs_map(tmp_path))
+    for y in (3.5, -3.5):
+        pts = c.obstacle_points(box(15.0, y, 0.3, 0.15), POSE0)
+        assert len(pts) > 0 and np.all(np.abs(pts[:, 1] - y) < 0.3), y
+
+
+def test_a_rock_on_a_leg_12_m_aside_at_the_cars_height_is_ignored(tmp_path):
+    c = checker(flat_legs_map(tmp_path))
+    assert len(c.obstacle_points(box(15.0, 12.0, 0.3, 0.30), POSE0)) == 0
+    assert c.s.reach == 6.0
+    wide = L.LaneHeightCheck(str(tmp_path), L.Settings.from_vehicle(VEHICLE, 0.138, reach=14.0))
+    assert len(wide.obstacle_points(box(15.0, 12.0, 0.3, 0.30), POSE0)) > 0
+
+
 def test_the_range_and_the_ego_box(tmp_path):
     c = checker(straight_map(tmp_path))
     assert len(c.obstacle_points(box(35.0, 1.0, 0.3, 0.3), POSE0)) == 0      # beyond 30 m
