@@ -107,7 +107,37 @@ def checker(map_dir, clearance=0.138):
     return L.LaneHeightCheck(str(map_dir), L.Settings.from_vehicle(VEHICLE, clearance))
 
 
-POSE0 = (0.0, 0.0, 0.0, 0.0)  # x, y, z, yaw of base_link in the map
+def quat(yaw=0.0, pitch=0.0, roll=0.0):
+    """(qx, qy, qz, qw) of a ZYX rotation: yaw about z, then pitch about y, then roll about x
+    (ROS: a positive pitch is nose down)."""
+    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+    return (sr * cp * cy - cr * sp * sy, cr * sp * cy + sr * cp * sy,
+            cr * cp * sy - sr * sp * cy, cr * cp * cy + sr * sp * sy)
+
+
+def rot(yaw=0.0, pitch=0.0, roll=0.0):
+    """The same rotation as a matrix, built here apart from the node's code."""
+    cy, sy, cp, sp = math.cos(yaw), math.sin(yaw), math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+    rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+    ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+    return rz @ ry @ rx
+
+
+def pose(x=0.0, y=0.0, z=0.0, yaw=0.0, pitch=0.0, roll=0.0):
+    """base_link in the map as the node takes it from the EKF: position, then quaternion."""
+    return (x, y, z) + quat(yaw, pitch, roll)
+
+
+def seen_from(pts_map, x=0.0, y=0.0, z=0.0, yaw=0.0, pitch=0.0, roll=0.0):
+    """Map points as the car's lidar gives them: in base_link, which tilts with the car."""
+    return (np.asarray(pts_map, float) - [x, y, z]) @ rot(yaw, pitch, roll)
+
+
+POSE0 = pose()  # base_link at the map's origin, level, heading +x
 
 
 # --- the threshold ---------------------------------------------------------------------------
@@ -166,6 +196,57 @@ def test_a_grade_and_a_crown_are_not_obstacles(tmp_path):
     assert len(c.obstacle_points(np.r_[cloud, rock], POSE0)) > 0
 
 
+def test_a_car_pitched_on_a_grade_sees_no_obstacle_on_it(tmp_path):
+    """Scensim issue 201: base_link tilts with the car, so on a grade the lidar sees the road
+    ahead about level; placed by yaw alone, a downhill road rose r sin(pitch) above the map
+    and became an obstacle from about 1 m ahead. Uphill, a rock had to stand that much higher."""
+    for g in (0.10, -0.10):                         # uphill, downhill along +x
+        tmp = tmp_path / f"g{g}"
+        tmp.mkdir()
+        z = lambda x, y, g=g: g * x
+        c = checker(straight_map(tmp, z))
+        car = dict(x=10.0, y=1.0, z=10.0 * g, pitch=-math.atan(g))   # on the road, nose with it
+        ahead = road(12, 40, -3.4, 3.4, z)
+        assert len(c.obstacle_points(seen_from(ahead, **car), pose(**car))) == 0, g
+        rock = box(25.0, 1.0, 0.3, 0.15, z0=float(z(25.0, 1.0)))
+        pts = c.obstacle_points(seen_from(np.r_[ahead, rock], **car), pose(**car))
+        assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 25.0) < 0.3), g
+
+
+def test_a_car_rolled_on_a_cross_slope_sees_no_obstacle_on_it(tmp_path):
+    z = lambda x, y: 0.05 * y                       # 5 % across, rising to the left
+    c = checker(straight_map(tmp_path, z))
+    car = dict(x=10.0, y=1.0, z=0.05, roll=math.atan(0.05))
+    ahead = road(12, 40, -3.4, 3.4, z)
+    assert len(c.obstacle_points(seen_from(ahead, **car), pose(**car))) == 0
+    rock = box(25.0, -2.0, 0.3, 0.15, z0=float(z(25.0, -2.0)))
+    assert len(c.obstacle_points(seen_from(np.r_[ahead, rock], **car), pose(**car))) > 0
+
+
+def test_a_turned_car_on_a_grade_is_placed_by_the_whole_rotation(tmp_path):
+    """Yaw, then pitch: a car heading -x down a road that falls along -x (so uphill behind it)
+    is nose down; the order of the rotations decides where its points land."""
+    z = lambda x, y: 0.08 * x
+    c = checker(straight_map(tmp_path, z))
+    car = dict(x=60.0, y=-1.0, z=4.8, yaw=math.pi, pitch=math.atan(0.08))
+    ahead = road(20, 58, -3.4, 3.4, z)
+    assert len(c.obstacle_points(seen_from(ahead, **car), pose(**car))) == 0
+    rock = box(45.0, -1.0, 0.3, 0.15, z0=float(z(45.0, -1.0)))
+    pts = c.obstacle_points(seen_from(np.r_[ahead, rock], **car), pose(**car))
+    assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 45.0) < 0.3)
+
+
+def test_points_return_to_base_link_by_the_inverse_rotation():
+    """The published cloud is in base_link with the input's stamp: the map points go back by
+    the same pose, pitched and rolled too."""
+    car = dict(x=5.0, y=-2.0, z=0.7, yaw=0.6, pitch=0.05, roll=-0.03)
+    local = np.array([[12.0, 1.0, 0.2], [20.0, -0.5, 0.1]])
+    m = L.to_map(local, pose(**car))
+    assert np.allclose(m, local @ rot(car["yaw"], car["pitch"], car["roll"]).T
+                       + [car["x"], car["y"], car["z"]])
+    assert np.allclose(L.to_base_link(m, pose(**car)), local)
+
+
 def test_points_off_the_lanelets_are_ignored(tmp_path):
     c = checker(straight_map(tmp_path))
     assert len(c.obstacle_points(box(15.0, 5.0, 0.3, 0.30), POSE0)) == 0     # on the walkway
@@ -182,11 +263,10 @@ def test_the_range_and_the_ego_box(tmp_path):
 def test_the_cloud_is_placed_by_the_pose(tmp_path):
     c = checker(straight_map(tmp_path))
     # base_link at x 40 heading +x, z 0.5 above the map frame's road (a cloud in base_link)
-    pose = (40.0, 1.0, 0.0, 0.0)
     rock = box(10.0, 0.0, 0.3, 0.15)                # 10 m ahead of the car, at map (50, 1)
-    pts = c.obstacle_points(rock, pose)
+    pts = c.obstacle_points(rock, pose(40.0, 1.0))
     assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 50.0) < 0.3)
-    yawed = (40.0, 1.0, 0.0, math.pi)               # facing -x: 10 m ahead is map x 30
+    yawed = pose(40.0, 1.0, yaw=math.pi)            # facing -x: 10 m ahead is map x 30
     pts = c.obstacle_points(rock, yawed)
     assert len(pts) > 0 and np.all(np.abs(pts[:, 0] - 30.0) < 0.3)
 
@@ -273,6 +353,42 @@ def test_the_node_publishes_a_persistent_rock(tmp_path):
         rclpy.shutdown()
 
 
+def test_the_node_reports_a_status_for_a_cloud_before_its_first_pose(tmp_path):
+    """Scensim issue 180's P8: a status for every raw cloud. Before the EKF's first pose the
+    node can check nothing, and it says so rather than staying silent."""
+    rclpy = pytest.importorskip("rclpy")
+    import json
+    from sensor_msgs.msg import PointCloud2
+    from std_msgs.msg import String
+    straight_map(tmp_path)
+    vi = tmp_path / "vehicle_info.param.yaml"
+    vi.write_text("/**:\n  ros__parameters:\n" + "".join(
+        f"    {k}: {v}\n" for k, v in VEHICLE.items()))
+    body = tmp_path / "body.param.yaml"
+    body.write_text("/**:\n  ros__parameters:\n    ground_clearance: 0.138\n")
+    rclpy.init(args=["--ros-args", "-p", f"map_path:={tmp_path}",
+                     "--params-file", str(vi), "--params-file", str(body)])
+    try:
+        node = L.Node()
+        peer = rclpy.create_node("lane_height_check_test_nopose")
+        got = []
+        peer.create_subscription(String, "/lane_height_check/debug/status",
+                                 lambda m: got.append(json.loads(m.data)), 10)
+        pub_c = peer.create_publisher(PointCloud2, "/lane_height_check/input/pointcloud", 10)
+        ex = rclpy.executors.SingleThreadedExecutor()
+        ex.add_node(node)
+        ex.add_node(peer)
+        cloud = road(2, 30, -3, 3).astype(np.float32)
+        for k in range(10):
+            pub_c.publish(L.to_cloud(cloud, peer.get_clock().now().to_msg(), "base_link"))
+            for _ in range(5):
+                ex.spin_once(timeout_sec=0.02)
+        assert got, "no status before the first pose"
+        assert all(s["pose"] is False and s["points"] == len(cloud) for s in got), got[:3]
+    finally:
+        rclpy.shutdown()
+
+
 def test_the_launch_wires_only_the_motion_velocity_planner():
     text = (PROFILE / "launch/autoware.launch.xml").read_text()
     assert '<arg name="lane_height_check" default="false"' in text
@@ -331,7 +447,7 @@ def test_the_node_imports_neither_matplotlib_nor_scipy(tmp_path):
         " 'wheel_tread': 1.6, 'left_overhang': 0.25, 'right_overhang': 0.25}, 0.138)\n"
         f"c = m.LaneHeightCheck({str(tmp_path)!r}, s)\n"
         "import numpy as np\n"
-        "p = c.obstacle_points(np.array([[15.0, 1.0, 0.2]] * 5), (0.0, 0.0, 0.0, 0.0))\n"
+        "p = c.obstacle_points(np.array([[15.0, 1.0, 0.2]] * 5), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0))\n"
         "m.detections(p); m.Persistence().update(m.detections(p))\n"
         "bad = sorted(k for k in sys.modules if k.split('.')[0] in ('matplotlib', 'scipy'))\n"
         "print(','.join(bad))\n")
